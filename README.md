@@ -3,6 +3,7 @@
 Projeto em criacao (v2, Dell OptiPlex 3060 Micro). Este repositorio e, a partir de agora, o local oficial de todo o trabalho deste novo homelab.
 Contexto detalhado em `docs/PROJECT_CONTEXT.md`.
 Shortlist de hardware em `docs/HARDWARE_SHORTLIST.md`.
+Ferramentas, documentação (Obsidian), monitorização (Slack) e IaC: `docs/PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md`.
 
 Nota: existe uma v1 anterior (PC antigo, TrueNAS + Jellyfin + WireGuard) cuja documentacao ainda vive em `C:\Users\ruigr\codexProjects\HomeLab`, mantida apenas como referencia historica.
 

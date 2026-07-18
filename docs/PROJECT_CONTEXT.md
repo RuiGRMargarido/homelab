@@ -138,3 +138,4 @@ Documento de contexto vivo do projeto. Atualizar quando houver decisoes novas.
 - 19/02/2026: decidido host inicial (Dell OptiPlex 3060 Micro) e definido plano ao receber o equipamento.
 - (data anterior, PC antigo): v1 do homelab operacional com TrueNAS + Jellyfin + WireGuard + stack RAG (Open WebUI/Ollama/Qdrant) em Docker.
 - 18/07/2026: consultada conversa historica do ChatGPT sobre a v1 (media/streaming/VPN) e confirmado com o utilizador que essa conversa descreve a v1, nao o estado atual do v2. Docs atualizados para refletir que o v2 tem, por agora, apenas o Proxmox instalado.
+- 18/07/2026: decidido plano de ferramentas/boas praticas para o v2 (ver `docs/PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md`): Obsidian (vault = este repo, sync via Git, sem Obsidian Sync pago) para documentacao; Uptime Kuma + Healthchecks.io self-hosted com alertas Slack para monitorizacao; adocao de IaC (OpenTofu + Ansible) desde ja.
