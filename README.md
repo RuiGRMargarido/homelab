@@ -1,6 +1,9 @@
 # HomeLab
 
 Projeto em criacao (v2, Dell OptiPlex 3060 Micro). Este repositorio e, a partir de agora, o local oficial de todo o trabalho deste novo homelab.
+
+No Obsidian, abre este repositorio como vault e comeca por `Homelab.md` — e a nota principal (MOC) com links para tudo o resto.
+
 Contexto detalhado em `docs/PROJECT_CONTEXT.md`.
 Shortlist de hardware em `docs/HARDWARE_SHORTLIST.md`.
 Ferramentas, documentação (Obsidian), monitorização (Slack) e IaC: `docs/PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md`.
