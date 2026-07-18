@@ -1,0 +1,3 @@
+# Estado de UI do Obsidian (especifico da maquina, gera ruido no diff)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
