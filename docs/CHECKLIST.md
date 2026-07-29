@@ -16,6 +16,8 @@ Convenção: marcar `[x]` só quando verificado a funcionar (não quando "aplica
 
 **Ordem de construção decidida em 29/07/2026** (ver [PROJECT_CONTEXT.md §Ordem de construção](PROJECT_CONTEXT.md#ordem-de-construcao)): estes serviços entram primeiro, numa rede simples (a mesma rede de casa, sem VLANs), para validar Proxmox + storage e ganhar confiança com algo real a funcionar antes de somar a complexidade de VLANs + firewall dedicada. Migram para as zonas certas (Trusted/DMZ) na Fase 2.
 
+Regista os acessos (URLs, utilizadores, passwords, caminhos) em `docs/SEGREDOS.md` à medida que cada serviço for criado - não esperar até ao fim.
+
 - [ ] Provisionar VM TrueNAS no Proxmox e passar o HDD 1TB (passthrough de disco, atualmente na bay USB TooQ) - ver [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#plano-de-instalacao-resumo)
 - [ ] No TrueNAS, importar o pool ZFS existente da NAS antiga (v1) - **não formatar**, o disco já tem dados
 - [ ] Confirmar/ajustar datasets e partilhas SMB/NFS no TrueNAS (`apps`, `cloud`, `media`, `backups`)

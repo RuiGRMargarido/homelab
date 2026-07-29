@@ -1,3 +1,10 @@
 # Estado de UI do Obsidian (especifico da maquina, gera ruido no diff)
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
+
+# Segredos e credenciais - nunca commitar (ver docs/SEGREDOS.example.md para o modelo sem valores)
+docs/SEGREDOS.md
+infra/secrets/
+*.tfvars
+*vault.yml
+*values-secret.yaml

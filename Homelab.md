@@ -11,6 +11,7 @@ Nota principal (MOC - *map of content*) do projeto. Começa sempre por aqui.
 - [Checklist de implementação](docs/CHECKLIST.md) - estado (feito/pendente) de todas as tarefas, por fase.
 - [Esquema lógico de rede](docs/ESQUEMA_LOGICO_REDE.md) - diagrama, VLANs, atribuição de NICs e regras entre zonas.
 - [Shortlist de hardware](docs/HARDWARE_SHORTLIST.md) - critérios e opções consideradas para o host.
+- `docs/SEGREDOS.md` - acessos, tokens e caminhos. **Só existe nesta máquina** (gitignored, não aparece no GitHub) - o link não funciona noutro dispositivo sem copiares o ficheiro à parte. Modelo sem valores reais: [SEGREDOS.example.md](docs/SEGREDOS.example.md).
 
 ## Como trabalhar neste projeto
 - [Ferramentas, documentação, monitorização e IaC (plano)](docs/PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md) - Obsidian, Slack/Uptime Kuma/Healthchecks, OpenTofu/Ansible.
@@ -24,3 +25,4 @@ Nota principal (MOC - *map of content*) do projeto. Começa sempre por aqui.
 
 ## Histórico
 - 18/07/2026: criada esta nota principal, a servir de ponto de entrada no vault do Obsidian.
+- 29/07/2026: adicionado link para `docs/SEGREDOS.md` (local, gitignored) e o respetivo modelo `docs/SEGREDOS.example.md`.

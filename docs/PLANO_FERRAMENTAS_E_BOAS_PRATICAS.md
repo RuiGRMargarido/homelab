@@ -122,3 +122,4 @@ Isto não substitui `code-review`/`security-review` (continuam obrigatórios ant
 ## 6. Notas de segurança
 - Nunca commitar tokens/API keys/passwords em texto - nem nos `.tfvars`, nem nos playbooks, nem nas notas do Obsidian se o vault for o repo público... **este repo é privado**, mas mesmo assim, tratar segredos como se pudesse ficar público um dia.
 - Webhooks do Slack são, na prática, um "bearer token" - tratar o URL como segredo (não colar em notas partilhadas).
+- **Referência de acessos e segredos (criado 29/07/2026)**: `docs/SEGREDOS.md` guarda os acessos administrativos, tokens e caminhos de todos os serviços - existe só localmente (`.gitignore`), nunca é commitado. O modelo sem valores reais, `docs/SEGREDOS.example.md`, esse sim está no repo, e documenta a estrutura. Para passwords realmente importantes (Proxmox, router, firewall), o ideal a prazo é um gestor de passwords - o `SEGREDOS.md` é para referência rápida, não o cofre principal.
