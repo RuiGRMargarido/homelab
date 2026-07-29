@@ -5,6 +5,7 @@ Projeto em criacao (v2, Dell OptiPlex 3060 Micro). Este repositorio e, a partir 
 No Obsidian, abre este repositorio como vault e comeca por `Homelab.md` — e a nota principal (MOC) com links para tudo o resto.
 
 Contexto detalhado em `docs/PROJECT_CONTEXT.md`.
+Checklist de implementação (estado de todas as tarefas): `docs/CHECKLIST.md`.
 Shortlist de hardware em `docs/HARDWARE_SHORTLIST.md`.
 Ferramentas, documentação (Obsidian), monitorização (Slack) e IaC: `docs/PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md`.
 Explicação (para iniciantes) de onde vive cada ferramenta e do fluxo de trabalho: `docs/ARQUITETURA_E_FLUXO_DE_TRABALHO.md`.
@@ -48,7 +49,4 @@ Nota: existe uma v1 anterior (PC antigo, TrueNAS + Jellyfin + WireGuard) cuja do
 - Alternativa refurb: HP EliteDesk 800 G4 (i7-8700, 32GB, SSD 512GB), ~419,00 EUR (19/02/2026).
 
 ## Proximos Passos
-- Instalar VM TrueNAS no Proxmox ja instalado e criar datasets/partilhas.
-- Recriar WireGuard e Jellyfin no v2 (decidir se reaproveita DDNS da v1 ou cria novo).
-- Decidir se/quando recriar a stack RAG (Open WebUI + Ollama + Qdrant) que existia na v1.
-- Planeado (quando fizer sentido): upgrade para 32GB RAM e SSD maior (512GB/1TB) conforme necessidade.
+Checklist completo, com estado (feito/pendente) de todas as fases: `docs/CHECKLIST.md`.
