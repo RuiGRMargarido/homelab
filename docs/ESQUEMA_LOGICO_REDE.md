@@ -19,30 +19,12 @@ flowchart TB
         FWMGM["Mgmt"]:::fw
     end
 
-    FWDMZ -- "VLAN 10" --> WG
-    FWTRU -- "VLAN 20" --> TN
-    FWMGM -- "VLAN 30" --> PVE
+    FWDMZ -- "VLAN 10" --> DMZZONE["Zona DMZ<br/>WireGuard server<br/>Caddy - app futura (pendente)"]:::dmz
+    FWTRU -- "VLAN 20" --> TRUZONE["Zona Trusted<br/>TrueNAS · Caddy interno<br/>Nextcloud · Jellyfin · k3s"]:::tru
+    FWMGM -- "VLAN 30" --> MGMTZONE["Zona Management<br/>Proxmox VE · UI/API<br/>Switch TL-SG608E"]:::mgmt
 
-    subgraph DMZ["Zona DMZ"]
-        WG["WireGuard server"]:::dmz
-        FUT["Caddy - app futura (pendente)"]:::dmz
-    end
-
-    subgraph TRUSTED["Zona Trusted"]
-        TN["TrueNAS"]:::tru
-        CADDY["Caddy - HTTPS interno"]:::tru
-        NC["Nextcloud"]:::tru
-        JF["Jellyfin"]:::tru
-        K3S["k3s - nós + workloads"]:::tru
-    end
-
-    subgraph MGMT["Zona Management"]
-        PVE["Proxmox VE - UI/API"]:::mgmt
-        SWG["Switch TL-SG608E"]:::mgmt
-    end
-
-    WG -. "túnel autenticado" .-> TN
-    WG -.-> PVE
+    DMZZONE -. "túnel autenticado" .-> TRUZONE
+    DMZZONE -.-> MGMTZONE
 
     classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
     classDef fw fill:#5470AD,stroke:#3C568C,color:#F5F7FA
@@ -51,7 +33,18 @@ flowchart TB
     classDef mgmt fill:#7B63B8,stroke:#5E4A93,color:#F5F7FA
 ```
 
-**Legenda** — cores: cinzento = internet/router; azul = interfaces da firewall; âmbar = DMZ; verde = Trusted; roxo = Management. Linhas: sólida = ligação de rede real (uplink ou VLAN com tag); tracejada = túnel WireGuard autenticado.
+| Zonas | |
+|---|---|
+| ⬜ | Internet / router (rede de casa) |
+| 🟦 | Firewall dedicada (interfaces) |
+| 🟧 | DMZ · VLAN 10 · `10.10.10.0/24` |
+| 🟩 | Trusted · VLAN 20 · `10.10.20.0/24` |
+| 🟪 | Management · VLAN 30 · `10.10.30.0/24` |
+
+| Ligações | |
+|---|---|
+| ── | Rede real (uplink ou VLAN com tag) |
+| ┄┄ | Túnel WireGuard autenticado · `10.10.40.0/24` |
 
 ## Zonas / VLANs
 
@@ -91,3 +84,4 @@ Qual app vai para a zona DMZ, e a zona de rede da futura VM de desenvolvimento/a
 ## Histórico
 
 - 29/07/2026: criado este documento, movendo o diagrama e a referência de rede que viviam em `PROJECT_CONTEXT.md` § Rede e Segmentação para um ficheiro próprio, mais fácil de consultar sem percorrer o log de decisões.
+- 29/07/2026: diagrama redesenhado — cada zona passou a uma única caixa (em vez de uma caixa por serviço) para caber sem scroll horizontal; os serviços de cada zona já estão detalhados na tabela "Zonas / VLANs" abaixo. Tentativa anterior (`direction TB` dentro de cada subgraph) não resultou — o Mermaid ignora essa direção quando há ligações entre subgraphs, confirmado por teste local antes de aplicar. Legenda também reformatada em tabela compacta com marcadores de cor/linha.
