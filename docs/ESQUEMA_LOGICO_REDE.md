@@ -19,12 +19,30 @@ flowchart TB
         FWMGM["Mgmt"]:::fw
     end
 
-    FWDMZ -- "VLAN 10" --> DMZZONE["Zona DMZ<br/>WireGuard server<br/>Caddy - app futura (pendente)"]:::dmz
-    FWTRU -- "VLAN 20" --> TRUZONE["Zona Trusted<br/>TrueNAS · Caddy interno<br/>Nextcloud · Jellyfin · k3s"]:::tru
-    FWMGM -- "VLAN 30" --> MGMTZONE["Zona Management<br/>Proxmox VE · UI/API<br/>Switch TL-SG608E"]:::mgmt
+    FWDMZ -- "VLAN 10" --> WG
+    FWTRU -- "VLAN 20" --> TN
+    FWMGM -- "VLAN 30" --> PVE
 
-    DMZZONE -. "túnel autenticado" .-> TRUZONE
-    DMZZONE -.-> MGMTZONE
+    subgraph DMZ["Zona DMZ"]
+        WG["WireGuard server"]:::dmz
+        FUT["Caddy - app futura (pendente)"]:::dmz
+    end
+
+    subgraph TRUSTED["Zona Trusted"]
+        TN["TrueNAS"]:::tru
+        CADDY["Caddy - HTTPS interno"]:::tru
+        NC["Nextcloud"]:::tru
+        JF["Jellyfin"]:::tru
+        K3S["k3s - nós + workloads"]:::tru
+    end
+
+    subgraph MGMT["Zona Management"]
+        PVE["Proxmox VE - UI/API"]:::mgmt
+        SWG["Switch TL-SG608E"]:::mgmt
+    end
+
+    WG -. "túnel autenticado" .-> TN
+    WG -.-> PVE
 
     classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
     classDef fw fill:#5470AD,stroke:#3C568C,color:#F5F7FA
@@ -85,3 +103,4 @@ Qual app vai para a zona DMZ, e a zona de rede da futura VM de desenvolvimento/a
 
 - 29/07/2026: criado este documento, movendo o diagrama e a referência de rede que viviam em `PROJECT_CONTEXT.md` § Rede e Segmentação para um ficheiro próprio, mais fácil de consultar sem percorrer o log de decisões.
 - 29/07/2026: diagrama redesenhado — cada zona passou a uma única caixa (em vez de uma caixa por serviço) para caber sem scroll horizontal; os serviços de cada zona já estão detalhados na tabela "Zonas / VLANs" abaixo. Tentativa anterior (`direction TB` dentro de cada subgraph) não resultou — o Mermaid ignora essa direção quando há ligações entre subgraphs, confirmado por teste local antes de aplicar. Legenda também reformatada em tabela compacta com marcadores de cor/linha.
+- 29/07/2026: revertido para caixas individuais por serviço — a versão colapsada, além de menos explícita, introduziu sobreposição visual (o título longo da firewall ficou espremido contra as caixas com o diagrama mais estreito). Confirmado por teste local que a versão de caixas individuais não tem esse problema, só é mais larga (pode precisar de scroll horizontal ou zoom out no Obsidian). Legenda em tabela mantém-se.
