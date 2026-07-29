@@ -18,9 +18,11 @@ Convenção: marcar `[x]` só quando verificado a funcionar (não quando "aplica
 
 Regista os acessos (URLs, utilizadores, passwords, caminhos) em `docs/SEGREDOS.md` à medida que cada serviço for criado - não esperar até ao fim.
 
-- [ ] Provisionar VM TrueNAS no Proxmox e passar o HDD 1TB (passthrough de disco, atualmente na bay USB TooQ) - ver [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#plano-de-instalacao-resumo)
-- [ ] No TrueNAS, importar o pool ZFS existente da NAS antiga (v1) - **não formatar**, o disco já tem dados
-- [ ] Confirmar/ajustar datasets e partilhas SMB/NFS no TrueNAS (`apps`, `cloud`, `media`, `backups`)
+- [x] Provisionar VM TrueNAS no Proxmox (VM 102) e passar o HDD 1TB (passthrough de disco via `by-id`, ver `SEGREDOS.md`) - ver [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#plano-de-instalacao-resumo)
+- [x] No TrueNAS SCALE, importar o pool ZFS existente da NAS antiga (v1) - pool `tank_test`, 0 erros, scrub anterior saudável
+- [x] **Decidido (29/07/2026): manter a estrutura de datasets antiga da v1** em vez de criar `apps`/`cloud`/`media`/`backups` do zero - datasets encontrados: `media`, `backups`, `jellyfin_config`, `ISO`, `projects`, `shares` (149GB, conteúdo por identificar), e o zvol `VM_ubuntu_wireguard-ulqfm6` (disco de uma VM WireGuard antiga, corria dentro do próprio TrueNAS - não faz parte da arquitetura nova, é só arquivo; pode apagar-se depois de confirmado o WireGuard novo)
+- [ ] Configurar partilhas SMB/NFS para os datasets que os serviços novos vão usar (`media` para Jellyfin, `backups` para os backups)
+- [ ] Decidir/criar dataset para o Nextcloud - não existe equivalente na estrutura antiga (`shares` ou `projects` podem servir, ou criar um novo)
 - [ ] Instalar/recriar WireGuard - decidir se reaproveita DDNS da v1 ou cria novo
 - [ ] Instalar Caddy (por agora só HTTPS interno via VPN - sem exposição pública até haver uma app decidida, ver Pendências)
 - [ ] Instalar Nextcloud (**só acesso via WireGuard** - decidido 22/07/2026, não expor publicamente), com storage a apontar para o TrueNAS
@@ -96,3 +98,4 @@ Ver [PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md §2](PLANO_FERRAMENTAS_E_BOAS_PRATICAS
 - 29/07/2026: criado `docs/ESQUEMA_LOGICO_REDE.md`; link da Fase 1 atualizado para apontar para lá em vez de só para o PROJECT_CONTEXT.md.
 - 29/07/2026: auditoria da documentação. Adicionada decisão em aberto sobre onde corre o Healthchecks.io (dentro ou fora do k3s). Corrigido o uso do travessão longo por hífen simples em todo o documento.
 - 29/07/2026: **reordenadas as Fases 1 e 2** - Serviços base passa a vir antes de Rede e Segmentação (era o inverso). Motivo: construir a VM de firewall dedicada + VLANs antes de ter qualquer serviço real a funcionar bloqueava o primeiro progresso visível na parte mais nova e menos familiar do projeto, sem nada ainda para proteger. Confirmado que o RAM continua em 16GB (upgrade ainda não feito) - reforça esta ordem, já que a Fase 1 cabe em 16GB e a Fase 2 (com firewall dedicada) é que precisa da folga extra. Fase 1 (serviços) reescrita para não presumir zonas de rede que ainda não existem; Fase 2 ganhou uma tarefa nova de migração dos serviços para as zonas certas.
+- 29/07/2026: **início real da implementação** - VM TrueNAS (102) criada no Proxmox, disco de 1TB anexado por passthrough `by-id`, TrueNAS SCALE 25.10.5 instalado (disco de 32GB, sem tocar no de 1TB), pool ZFS `tank_test` importada com sucesso (0 erros). Decidido manter a estrutura de datasets antiga da v1 em vez de criar `apps`/`cloud`/`media`/`backups` do zero - ver detalhe na Fase 1 acima. Identificado um zvol `VM_ubuntu_wireguard-ulqfm6`, resto de uma VM que corria dentro do próprio TrueNAS na v1 (o TrueNAS SCALE tem hypervisor embutido) - não faz parte da arquitetura v2 (Proxmox é o único hypervisor), fica só como arquivo.
