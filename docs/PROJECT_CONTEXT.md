@@ -43,15 +43,15 @@ Documento de contexto vivo do projeto. Atualizar quando houver decisoes novas.
 
 **Decidido em 22/07/2026.** Substitui a exclusão anterior no Escopo ("não inclui arquitetura detalhada de rede"). Desenho completo (diagrama, tabela de VLANs, atribuição de NICs, regras entre zonas) tem documento próprio, mais fácil de consultar: **[`docs/ESQUEMA_LOGICO_REDE.md`](ESQUEMA_LOGICO_REDE.md)**.
 
-Resumo: 3 VLANs (10/DMZ, 20/Trusted, 30/Management) + subnet virtual do túnel WireGuard, mediadas por uma **VM de firewall dedicada** (OPNsense/pfSense, não a firewall nativa do Proxmox — escolhida por ser mais capaz, ex. IDS/IPS; riscos concretos desta escolha em "Riscos e mitigações": RAM, lockout, fiabilidade do USB, manutenção). NIC onboard = trunk para o switch; adaptador USB→RJ45 = perna WAN. Pendente: qual app vai efetivamente para a zona DMZ — ver "Pendências". Nextcloud e Jellyfin já decididos como Trusted-only.
+Resumo: 3 VLANs (10/DMZ, 20/Trusted, 30/Management) + subnet virtual do túnel WireGuard, mediadas por uma **VM de firewall dedicada** (OPNsense/pfSense, não a firewall nativa do Proxmox - escolhida por ser mais capaz, ex. IDS/IPS; riscos concretos desta escolha em "Riscos e mitigações": RAM, lockout, fiabilidade do USB, manutenção). NIC onboard = trunk para o switch; adaptador USB→RJ45 = perna WAN. Pendente: qual app vai efetivamente para a zona DMZ - ver "Pendências". Nextcloud e Jellyfin já decididos como Trusted-only.
 
 ## Router de casa e rede doméstica (fora da segmentação do homelab, novo 28/07/2026)
 
-- **Modelo**: Vodafone Smart Router — Huawei OptiXstar HG8247B7-8N (ONT + router GPON fornecido/bloqueado pela Vodafone).
-- **Rede de convidados (guest)**: suportada nativamente na própria interface do router — pode ser ativada diretamente ali, sem depender do OptiPlex nem das VLANs do homelab. Resolve a preocupação de dispositivos convidados ficarem sem rede se o OptiPlex for reiniciado/desligado.
-- **VLANs 802.1Q personalizadas** (ex. para isolar IoT): não confirmado se a interface do router expõe essa opção — a confirmar diretamente no admin do router. Equipamentos "Smart Router" da Vodafone tendem a vir com funcionalidades avançadas desativadas por bloqueio do operador.
-- **Bridge mode: confirmado desativado pela Vodafone** neste equipamento ([forum Vodafone](https://forum.vodafone.pt/t5/Router/Router-HG8247B7-8N-porta-4-de-2-5Gbps-s%C3%B3-d%C3%A1-100Mbps/m-p/448886)) — reforça a decisão já tomada de o router se manter como gateway real da internet, sem a VM de firewall o substituir (essa alternativa exigiria bridge mode; não disponível sem contacto com o suporte Vodafone, 16913, sem garantia de desbloqueio).
-- **Decisão de âmbito**: segmentação adicional de Wi-Fi/guest/IoT da rede doméstica geral mantém-se **independente do OptiPlex** e fora do âmbito das VLANs do homelab (DMZ/Trusted/Management) — evita que dispositivos do dia-a-dia (telemóveis, portáteis, convidados, IoT) dependam da disponibilidade do OptiPlex. Se um dia for preciso mais segmentação do que o router permite nativamente, a via é um access point/switch adicional capaz de VLANs, a jusante do router — não integrado na VM de firewall do homelab.
+- **Modelo**: Vodafone Smart Router - Huawei OptiXstar HG8247B7-8N (ONT + router GPON fornecido/bloqueado pela Vodafone).
+- **Rede de convidados (guest)**: suportada nativamente na própria interface do router - pode ser ativada diretamente ali, sem depender do OptiPlex nem das VLANs do homelab. Resolve a preocupação de dispositivos convidados ficarem sem rede se o OptiPlex for reiniciado/desligado.
+- **VLANs 802.1Q personalizadas** (ex. para isolar IoT): não confirmado se a interface do router expõe essa opção - a confirmar diretamente no admin do router. Equipamentos "Smart Router" da Vodafone tendem a vir com funcionalidades avançadas desativadas por bloqueio do operador.
+- **Bridge mode: confirmado desativado pela Vodafone** neste equipamento ([forum Vodafone](https://forum.vodafone.pt/t5/Router/Router-HG8247B7-8N-porta-4-de-2-5Gbps-s%C3%B3-d%C3%A1-100Mbps/m-p/448886)) - reforça a decisão já tomada de o router se manter como gateway real da internet, sem a VM de firewall o substituir (essa alternativa exigiria bridge mode; não disponível sem contacto com o suporte Vodafone, 16913, sem garantia de desbloqueio).
+- **Decisão de âmbito**: segmentação adicional de Wi-Fi/guest/IoT da rede doméstica geral mantém-se **independente do OptiPlex** e fora do âmbito das VLANs do homelab (DMZ/Trusted/Management) - evita que dispositivos do dia-a-dia (telemóveis, portáteis, convidados, IoT) dependam da disponibilidade do OptiPlex. Se um dia for preciso mais segmentação do que o router permite nativamente, a via é um access point/switch adicional capaz de VLANs, a jusante do router - não integrado na VM de firewall do homelab.
 
 ## Ambiente de desenvolvimento e testes de agentes/LLMs (novo, 28/07/2026)
 - Objetivo: VM Linux dedicada para programar e testar agentes/LLMs.
@@ -132,13 +132,7 @@ Resumo: 3 VLANs (10/DMZ, 20/Trusted, 30/Management) + subnet virtual do túnel W
 - Fase 3: firewall dedicado/VLANs (decidido 22/07/2026, ver "Rede e Segmentacao"), mais discos, automacao (IaC), monitorizacao.
 
 ## Plano de instalacao (resumo)
-1. Instalar Proxmox VE no SSD 240GB.
-2. Criar VM TrueNAS e passar o HDD 1TB (passthrough de disco, atualmente na bay USB TooQ).
-3. No TrueNAS, **importar o pool ZFS existente** (dados da NAS antiga, v1) em vez de formatar de novo — depois confirmar/ajustar datasets e partilhas (SMB/NFS).
-4. Criar WireGuard e Reverse proxy (Caddy).
-5. Criar Nextcloud e Jellyfin e ligar storage ao TrueNAS.
-6. Configurar DDNS e port-forward 80/443 no router (apenas para o reverse proxy).
-7. Automatizar backups para SSD externo e testar restore.
+Sequencia completa e atualizada (por fase, com estado feito/pendente): `docs/CHECKLIST.md`. Nota: uma versao anterior deste resumo (7 passos, sem firewall/VLANs/k3s) ficou desatualizada face as decisoes de 22-29/07/2026 e foi substituida por este pointer para evitar as duas versoes divergirem outra vez.
 
 ## Riscos e mitigacoes
 - Exposicao externa insegura: usar reverse proxy + TLS + limitar portas + admin via VPN.
@@ -150,7 +144,7 @@ Resumo: 3 VLANs (10/DMZ, 20/Trusted, 30/Management) + subnet virtual do túnel W
 - Perda de configuracao da firewall: mais critico que perder "um servico" - e toda a politica de rede/seguranca. Mitigacao: exportar a configuracao da propria firewall (ex. config.xml do OPNsense) alem do backup normal da VM.
 
 ## Pendencias
-Checklist completo com estado (feito/pendente) de todas as tarefas: `docs/CHECKLIST.md`. Decisoes ainda em aberto (nao tarefas): qual app vai para a zona DMZ (exposta publicamente via Caddy) - Nextcloud e Jellyfin ja decididos como Trusted-only, por isso o objetivo original "expor 1-2 apps" fica sem app associada ate isto ficar decidido; zona de rede para a nova VM de desenvolvimento/agentes-LLMs (Trusted vs. zona isolada propria); recriar ou nao a stack RAG da v1; destino/desligamento do PC antigo (v1) apos o v2 estar operacional.
+Checklist completo com estado (feito/pendente) de todas as tarefas: `docs/CHECKLIST.md`. Decisoes ainda em aberto (nao tarefas): qual app vai para a zona DMZ (exposta publicamente via Caddy) - Nextcloud e Jellyfin ja decididos como Trusted-only, por isso o objetivo original "expor 1-2 apps" fica sem app associada ate isto ficar decidido; zona de rede para a nova VM de desenvolvimento/agentes-LLMs (Trusted vs. zona isolada propria); confirmar o teto real de RAM do OptiPlex 3060 Micro (assumido 32GB); se o Healthchecks.io corre dentro ou fora do k3s; recriar ou nao a stack RAG da v1; destino/desligamento do PC antigo (v1) apos o v2 estar operacional.
 
 ## Decisoes recentes
 - 19/02/2026: host escolhido e encomendado: Dell OptiPlex 3060 Micro (i5-8500T, 16GB RAM, SSD 256GB) por 229 EUR.
@@ -172,3 +166,4 @@ Checklist completo com estado (feito/pendente) de todas as tarefas: `docs/CHECKL
 - 28/07/2026: novo requisito - VM Linux para programar e testar agentes/LLMs, com mistura de modelos locais e APIs externas. Hardware sem GPU dedicada (so grafica integrada) limita inferencia local a modelos pequenos/lentos. Zona de rede (Trusted vs. isolada) fica pendente. Reforca o risco de RAM ja registado - ver nova seccao "Ambiente de desenvolvimento e testes de agentes/LLMs".
 - 28/07/2026: identificado o router de casa - Vodafone Smart Router (Huawei OptiXstar HG8247B7-8N). Confirmado via pesquisa web: guest network suportado nativamente (independente do OptiPlex); bridge mode desativado pela Vodafone (reforca a decisao de nao substituir o router pela VM de firewall como gateway); VLANs 802.1Q personalizadas nao confirmadas na interface do router. Decidido manter segmentacao Wi-Fi/guest/IoT fora do ambito das VLANs do homelab e independente do OptiPlex - ver nova seccao "Router de casa e rede domestica".
 - 29/07/2026: criado `docs/ESQUEMA_LOGICO_REDE.md` como documento de referencia proprio para a arquitetura de rede (diagrama, tabela de VLANs, atribuicao de NICs, regras entre zonas), mais facil de consultar do que percorrer o log de decisoes. A seccao "Rede e Segmentacao" deste ficheiro ficou resumida a um pointer.
+- 29/07/2026: auditoria completa de toda a documentacao. Corrigido: "Plano de instalacao (resumo)" (7 passos antigos, sem firewall/VLANs/k3s) substituido por pointer para o CHECKLIST.md; README.md corrigido (Caddy descrito como exposto publicamente, port-forward direto ao reverse proxy - ambos desatualizados); ARQUITETURA_E_FLUXO_DE_TRABALHO.md com Caddy em falta na tabela/diagrama; PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md sem mencionar CHECKLIST.md/ESQUEMA_LOGICO_REDE.md na estrutura recomendada; adicionadas duas pendencias novas (teto de RAM, localizacao do Healthchecks.io) para consistencia entre este ficheiro e o CHECKLIST.md. Corrigido tambem o uso do travessao longo (em-dash) em todos os documentos por hifen simples (instrucao global do utilizador pede isso) - 114 ocorrencias substituidas.

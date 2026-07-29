@@ -1,6 +1,6 @@
-# Esquema Lógico de Rede — Homelab v2
+# Esquema Lógico de Rede - Homelab v2
 
-Documento de referência rápida: "como está montada a rede", para consultar a qualquer momento sem ter de procurar dentro do `PROJECT_CONTEXT.md`. As decisões, o histórico e os porquês continuam lá — aqui fica só o desenho atual.
+Documento de referência rápida: "como está montada a rede", para consultar a qualquer momento sem ter de procurar dentro do `PROJECT_CONTEXT.md`. As decisões, o histórico e os porquês continuam lá - aqui fica só o desenho atual.
 
 ## Diagrama
 
@@ -51,13 +51,13 @@ flowchart TB
     classDef mgmt fill:#7B63B8,stroke:#5E4A93,color:#F5F7FA
 ```
 
-| Zonas | |
-|---|---|
-| ⬜ | Internet / router (rede de casa) |
-| 🟦 | Firewall dedicada (interfaces) |
-| 🟧 | DMZ · VLAN 10 · `10.10.10.0/24` |
-| 🟩 | Trusted · VLAN 20 · `10.10.20.0/24` |
-| 🟪 | Management · VLAN 30 · `10.10.30.0/24` |
+| Zonas |                                        |
+| ----- | -------------------------------------- |
+| ⬜     | Internet / router (rede de casa)       |
+| 🟦    | Firewall dedicada (interfaces)         |
+| 🟧    | DMZ · VLAN 10 · `10.10.10.0/24`        |
+| 🟩    | Trusted · VLAN 20 · `10.10.20.0/24`    |
+| 🟪    | Management · VLAN 30 · `10.10.30.0/24` |
 
 | Ligações | |
 |---|---|
@@ -72,7 +72,7 @@ flowchart TB
 | 10 | DMZ | 10.10.10.0/24 | WireGuard (perna internet-facing). Caddy só entra aqui quando houver app decidida para exposição pública |
 | 20 | Trusted | 10.10.20.0/24 | TrueNAS, Caddy (HTTPS interno), Nextcloud, Jellyfin, nós k3s e workloads |
 | 30 | Management | 10.10.30.0/24 | UI/API do Proxmox, gestão do switch, SSH aos nós |
-| — | Túnel WireGuard | 10.10.40.0/24 | **Não é VLAN do switch** — subnet virtual só dentro da VM do WireGuard, atribuída a clientes já autenticados |
+| - | Túnel WireGuard | 10.10.40.0/24 | **Não é VLAN do switch** - subnet virtual só dentro da VM do WireGuard, atribuída a clientes já autenticados |
 
 ## Atribuição de NICs
 
@@ -82,7 +82,7 @@ flowchart TB
 
 ## Fisicamente, o que liga ao switch
 
-Hoje, só **um cabo** — o da NIC onboard do OptiPlex, numa porta configurada como trunk. Todos os "dispositivos" das 3 zonas são VMs/containers dentro do mesmo host físico; a separação acontece no bridge VLAN-aware do Proxmox, não por cabos extra. O adaptador USB→RJ45 vai direto ao router, não ao switch.
+Hoje, só **um cabo** - o da NIC onboard do OptiPlex, numa porta configurada como trunk. Todos os "dispositivos" das 3 zonas são VMs/containers dentro do mesmo host físico; a separação acontece no bridge VLAN-aware do Proxmox, não por cabos extra. O adaptador USB→RJ45 vai direto ao router, não ao switch.
 
 ## Regras entre zonas
 
@@ -93,14 +93,14 @@ Hoje, só **um cabo** — o da NIC onboard do OptiPlex, numa porta configurada c
 
 ## Rede doméstica (fora deste esquema)
 
-Wi-Fi geral, rede de convidados e eventual isolamento de IoT ficam **fora** desta segmentação — vivem no router (Vodafone Smart Router / Huawei OptiXstar HG8247B7-8N) e não dependem do OptiPlex. Detalhe em `PROJECT_CONTEXT.md` § Router de casa e rede doméstica.
+Wi-Fi geral, rede de convidados e eventual isolamento de IoT ficam **fora** desta segmentação - vivem no router (Vodafone Smart Router / Huawei OptiXstar HG8247B7-8N) e não dependem do OptiPlex. Detalhe em `PROJECT_CONTEXT.md` § Router de casa e rede doméstica.
 
 ## Pendente
 
-Qual app vai para a zona DMZ, e a zona de rede da futura VM de desenvolvimento/agentes-LLMs — ver `docs/CHECKLIST.md` § Decisões em aberto.
+Qual app vai para a zona DMZ, e a zona de rede da futura VM de desenvolvimento/agentes-LLMs - ver `docs/CHECKLIST.md` § Decisões em aberto.
 
 ## Histórico
 
 - 29/07/2026: criado este documento, movendo o diagrama e a referência de rede que viviam em `PROJECT_CONTEXT.md` § Rede e Segmentação para um ficheiro próprio, mais fácil de consultar sem percorrer o log de decisões.
-- 29/07/2026: diagrama redesenhado — cada zona passou a uma única caixa (em vez de uma caixa por serviço) para caber sem scroll horizontal; os serviços de cada zona já estão detalhados na tabela "Zonas / VLANs" abaixo. Tentativa anterior (`direction TB` dentro de cada subgraph) não resultou — o Mermaid ignora essa direção quando há ligações entre subgraphs, confirmado por teste local antes de aplicar. Legenda também reformatada em tabela compacta com marcadores de cor/linha.
-- 29/07/2026: revertido para caixas individuais por serviço — a versão colapsada, além de menos explícita, introduziu sobreposição visual (o título longo da firewall ficou espremido contra as caixas com o diagrama mais estreito). Confirmado por teste local que a versão de caixas individuais não tem esse problema, só é mais larga (pode precisar de scroll horizontal ou zoom out no Obsidian). Legenda em tabela mantém-se.
+- 29/07/2026: diagrama redesenhado - cada zona passou a uma única caixa (em vez de uma caixa por serviço) para caber sem scroll horizontal; os serviços de cada zona já estão detalhados na tabela "Zonas / VLANs" abaixo. Tentativa anterior (`direction TB` dentro de cada subgraph) não resultou - o Mermaid ignora essa direção quando há ligações entre subgraphs, confirmado por teste local antes de aplicar. Legenda também reformatada em tabela compacta com marcadores de cor/linha.
+- 29/07/2026: revertido para caixas individuais por serviço - a versão colapsada, além de menos explícita, introduziu sobreposição visual (o título longo da firewall ficou espremido contra as caixas com o diagrama mais estreito). Confirmado por teste local que a versão de caixas individuais não tem esse problema, só é mais larga (pode precisar de scroll horizontal ou zoom out no Obsidian). Legenda em tabela mantém-se.

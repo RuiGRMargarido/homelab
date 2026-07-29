@@ -2,7 +2,7 @@
 
 Projeto em criacao (v2, Dell OptiPlex 3060 Micro). Este repositorio e, a partir de agora, o local oficial de todo o trabalho deste novo homelab.
 
-No Obsidian, abre este repositorio como vault e comeca por `Homelab.md` — e a nota principal (MOC) com links para tudo o resto.
+No Obsidian, abre este repositorio como vault e comeca por `Homelab.md` - e a nota principal (MOC) com links para tudo o resto.
 
 Contexto detalhado em `docs/PROJECT_CONTEXT.md`.
 Checklist de implementação (estado de todas as tarefas): `docs/CHECKLIST.md`.
@@ -19,14 +19,14 @@ Nota: existe uma v1 anterior (PC antigo, TrueNAS + Jellyfin + WireGuard) cuja do
 
 ## Servicos (Fase 1)
 - NAS: TrueNAS (VM) com ZFS (sem mirror por agora; RAID mais tarde).
-- VPN: WireGuard (administracao remota).
-- Reverse proxy: Caddy (TLS automatico) para as apps expostas.
-- Cloud: Nextcloud.
-- Media server: Jellyfin.
+- VPN: WireGuard (administracao remota, acesso a zona Trusted).
+- Reverse proxy: Caddy (TLS automatico) - por agora so HTTPS interno via WireGuard; ganha exposicao publica quando houver uma app decidida (ver Pendencias).
+- Cloud: Nextcloud (so via WireGuard, sem exposicao publica).
+- Media server: Jellyfin (so via WireGuard).
 
 ## Arquitetura (Fase 1)
-- Router atual + DDNS; expor apenas portas 80/443 para o reverse proxy.
-- Proxmox VE no SSD (240GB) como base de VMs/LXCs.
+- Router atual + DDNS; o port-forward aponta para uma VM de firewall dedicada, que media o trafego entre zonas de rede (VLANs) - detalhe completo em `docs/ESQUEMA_LOGICO_REDE.md`.
+- Proxmox VE no SSD (240GB) como base de VMs/LXCs, e de um cluster k3s para os servicos de aplicacao.
 - TrueNAS numa VM com disco(s) dedicados; dados em datasets e partilhas SMB/NFS.
 - SSD externo 1TB usado como backup (nao faz parte do RAID).
 
