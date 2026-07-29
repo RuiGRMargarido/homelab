@@ -9,31 +9,34 @@ Convenção: marcar `[x]` só quando verificado a funcionar (não quando "aplica
 - [x] Escolher e comprar o host (Dell OptiPlex 3060 Micro, i5-8500T/16GB/SSD 256GB) - ver [HARDWARE_SHORTLIST.md](HARDWARE_SHORTLIST.md#escolha-atual-host-inicial)
 - [x] Instalar Proxmox VE no host
 - [ ] Confirmar especificações reais ao receber (SSD NVMe vs SATA, RAM 1x16GB vs 2x8GB) - ver [HARDWARE_SHORTLIST.md](HARDWARE_SHORTLIST.md#escolha-atual-host-inicial)
-- [ ] **Upgrade para 32GB RAM** - deixou de ser "quando necessário": com TrueNAS + k3s + Prometheus/Grafana + VM de firewall dedicada, os 16GB atuais ficam sem folga (ver [PROJECT_CONTEXT.md §Riscos](PROJECT_CONTEXT.md#riscos-e-mitigacoes)). Tratar como pré-requisito antes de ligar tudo em simultâneo.
+- [ ] **Upgrade para 32GB RAM** - confirmado (29/07/2026) que ainda temos só os 16GB atuais. Não bloqueia a Fase 1 (serviços base cabem em 16GB), mas é pré-requisito antes de somar VLANs/firewall dedicada/k3s (ver [PROJECT_CONTEXT.md §Riscos](PROJECT_CONTEXT.md#riscos-e-mitigacoes)).
 - [ ] Upgrade SSD para 512GB/1TB (quando o storage apertar)
 
-## Fase 1 - Rede e Segmentação (VLANs + Firewall)
+## Fase 1 - Serviços base (rede simples, sem VLANs ainda)
 
-Diagrama, tabela de VLANs, atribuição de NICs e regras entre zonas: [ESQUEMA_LOGICO_REDE.md](ESQUEMA_LOGICO_REDE.md). Decisão e riscos: [PROJECT_CONTEXT.md §Rede e Segmentação](PROJECT_CONTEXT.md#rede-e-segmentacao-vlans--firewall).
+**Ordem de construção decidida em 29/07/2026** (ver [PROJECT_CONTEXT.md §Ordem de construção](PROJECT_CONTEXT.md#ordem-de-construcao)): estes serviços entram primeiro, numa rede simples (a mesma rede de casa, sem VLANs), para validar Proxmox + storage e ganhar confiança com algo real a funcionar antes de somar a complexidade de VLANs + firewall dedicada. Migram para as zonas certas (Trusted/DMZ) na Fase 2.
+
+- [ ] Provisionar VM TrueNAS no Proxmox e passar o HDD 1TB (passthrough de disco, atualmente na bay USB TooQ) - ver [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#plano-de-instalacao-resumo)
+- [ ] No TrueNAS, importar o pool ZFS existente da NAS antiga (v1) - **não formatar**, o disco já tem dados
+- [ ] Confirmar/ajustar datasets e partilhas SMB/NFS no TrueNAS (`apps`, `cloud`, `media`, `backups`)
+- [ ] Instalar/recriar WireGuard - decidir se reaproveita DDNS da v1 ou cria novo
+- [ ] Instalar Caddy (por agora só HTTPS interno via VPN - sem exposição pública até haver uma app decidida, ver Pendências)
+- [ ] Instalar Nextcloud (**só acesso via WireGuard** - decidido 22/07/2026, não expor publicamente), com storage a apontar para o TrueNAS
+- [ ] Instalar/recriar Jellyfin (mesmo padrão da v1: só via WireGuard), com storage a apontar para o TrueNAS
+- [ ] Automatizar backups para o SSD externo 1TB e testar um restore completo
+
+## Fase 2 - Rede e Segmentação (VLANs + Firewall)
+
+Diagrama, tabela de VLANs, atribuição de NICs e regras entre zonas: [ESQUEMA_LOGICO_REDE.md](ESQUEMA_LOGICO_REDE.md). Decisão e riscos: [PROJECT_CONTEXT.md §Rede e Segmentação](PROJECT_CONTEXT.md#rede-e-segmentacao-vlans--firewall). Passa a acontecer depois da Fase 1 (era antes, até 29/07/2026) - ver "Ordem de construção".
 
 - [ ] Configurar porta trunk no switch TL-SG608E (VLANs 10/20/30 com tag) ligada à NIC onboard do OptiPlex
 - [ ] Configurar a NIC onboard do Proxmox como bridge VLAN-aware (trunk DMZ/Trusted/Management)
 - [ ] Configurar o adaptador USB→RJ45 como bridge separada, sem tags (perna WAN, ligada à rede de casa/router)
 - [ ] Criar a VM de firewall dedicada (OPNsense ou pfSense), com uma interface por zona (WAN, DMZ, Trusted, Management)
 - [ ] Configurar regras do firewall: DMZ→Trusted só nas portas necessárias; DMZ→Management bloqueado; WAN-side→Management só a partir do IP do PC do Rui; túnel WireGuard→Trusted+Management permitido
+- [ ] Migrar os serviços da Fase 1 para as zonas certas: TrueNAS, Caddy, Nextcloud, Jellyfin → Trusted; WireGuard → DMZ
 - [ ] Atualizar o port-forward do router: passa a apontar para a perna WAN-side da VM de firewall (não diretamente para o Caddy)
 - [ ] Exportar e guardar a configuração da firewall (ex.: `config.xml` do OPNsense) como parte do backup - perder isto é perder toda a política de rede, não só "um serviço"
-
-## Fase 2 - Serviços base
-
-- [ ] Provisionar VM TrueNAS no Proxmox (zona Trusted) e passar o HDD 1TB (passthrough de disco, atualmente na bay USB TooQ) - ver [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md#plano-de-instalacao-resumo)
-- [ ] No TrueNAS, importar o pool ZFS existente da NAS antiga (v1) - **não formatar**, o disco já tem dados
-- [ ] Confirmar/ajustar datasets e partilhas SMB/NFS no TrueNAS (`apps`, `cloud`, `media`, `backups`)
-- [ ] Instalar/recriar WireGuard (zona DMZ, gera acesso à zona Trusted) - decidir se reaproveita DDNS da v1 ou cria novo
-- [ ] Instalar Caddy (zona Trusted, por agora só HTTPS interno via VPN - sem perna DMZ até haver uma app decidida para exposição pública)
-- [ ] Instalar Nextcloud (zona Trusted, **só acesso via WireGuard** - decidido 22/07/2026, não expor publicamente), com storage a apontar para o TrueNAS
-- [ ] Instalar/recriar Jellyfin (zona Trusted, mesmo padrão da v1: só via WireGuard), com storage a apontar para o TrueNAS
-- [ ] Automatizar backups para o SSD externo 1TB e testar um restore completo
 
 ## Fase 3 - Storage / RAID (mais tarde)
 
@@ -47,7 +50,7 @@ Ver [PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md §4-5](PLANO_FERRAMENTAS_E_BOAS_PRATIC
 - [ ] Scaffold do repo: `infra/opentofu`, `infra/ansible`, `infra/kubernetes`
 - [ ] Criar utilizador/role dedicado + API token no Proxmox para o OpenTofu (nunca `root@pam`)
 - [ ] Workflow de GitHub Actions a validar `infra/` (`tofu fmt`/`validate`, `ansible-lint`, `helm lint`) - antes do primeiro `apply` real
-- [ ] Provisionar a VM TrueNAS via OpenTofu (substituir o passo manual da Fase 2)
+- [ ] Provisionar a VM TrueNAS via OpenTofu (substituir o passo manual da Fase 1)
 - [ ] Provisionar 1 VM via OpenTofu + instalar k3s nela via Ansible (cluster de nó único, zona Trusted)
 - [ ] Configurar `.gitignore` para segredos (`*.tfvars`, `secrets/`, `*vault.yml`, `*values-secret.yaml`) + ficheiros `.example`
 - [ ] Migrar Jellyfin/Nextcloud para manifests/Helm no k3s, com storage a apontar para o TrueNAS
@@ -90,3 +93,4 @@ Ver [PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md §2](PLANO_FERRAMENTAS_E_BOAS_PRATICAS
 - 28/07/2026: novo requisito - VM Linux para programar e testar agentes/LLMs (modelos locais + APIs externas). Adicionadas duas decisões em aberto: zona de rede desta VM, e confirmar o teto real de RAM do OptiPlex (o pressuposto de 32GB pode não chegar).
 - 29/07/2026: criado `docs/ESQUEMA_LOGICO_REDE.md`; link da Fase 1 atualizado para apontar para lá em vez de só para o PROJECT_CONTEXT.md.
 - 29/07/2026: auditoria da documentação. Adicionada decisão em aberto sobre onde corre o Healthchecks.io (dentro ou fora do k3s). Corrigido o uso do travessão longo por hífen simples em todo o documento.
+- 29/07/2026: **reordenadas as Fases 1 e 2** - Serviços base passa a vir antes de Rede e Segmentação (era o inverso). Motivo: construir a VM de firewall dedicada + VLANs antes de ter qualquer serviço real a funcionar bloqueava o primeiro progresso visível na parte mais nova e menos familiar do projeto, sem nada ainda para proteger. Confirmado que o RAM continua em 16GB (upgrade ainda não feito) - reforça esta ordem, já que a Fase 1 cabe em 16GB e a Fase 2 (com firewall dedicada) é que precisa da folga extra. Fase 1 (serviços) reescrita para não presumir zonas de rede que ainda não existem; Fase 2 ganhou uma tarefa nova de migração dos serviços para as zonas certas.

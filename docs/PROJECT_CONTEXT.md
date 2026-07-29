@@ -2,12 +2,14 @@
 
 Documento de contexto vivo do projeto. Atualizar quando houver decisoes novas.
 
-## Snapshot (19/02/2026, atualizado 18/07/2026)
+## Snapshot (19/02/2026, atualizado 29/07/2026)
 - Objetivo: aprender e fazer deploy de projetos num homelab com exposicao externa controlada (1-2 apps).
 - Decidido: Proxmox VE + TrueNAS (VM) + Caddy + WireGuard + Nextcloud + Jellyfin.
 - Decidido: comprar um mini PC como host inicial (baixo consumo/ruido).
 - Storage atual: 1x HDD 1TB (3.5", em bay USB TooQ, com o pool ZFS da NAS antiga por importar) + 1x SSD 240GB (Proxmox); existe tambem 1x SSD externo 1TB (para backup).
+- RAM atual: 16GB (confirmado 29/07/2026 - upgrade para 32GB ainda por fazer).
 - Rede: arquitetura de VLANs + firewall dedicada decidida (22/07/2026) - ver seccao "Rede e Segmentacao". Switch TL-SG608E e gerido, com suporte a VLAN 802.1Q.
+- Ordem de construcao (decidida 29/07/2026): servicos base primeiro (rede simples), VLANs/firewall dedicada depois - ver seccao "Ordem de construcao".
 - Novo requisito (28/07/2026): VM Linux para programar e testar agentes/LLMs (modelos locais pequenos + APIs externas) - zona de rede ainda por decidir, ver "Ambiente de desenvolvimento" e Pendencias.
 
 ## Historico: v1 (PC antigo) vs v2 (OptiPlex, atual)
@@ -38,6 +40,14 @@ Documento de contexto vivo do projeto. Atualizar quando houver decisoes novas.
 - TrueNAS em VM com disco(s) dedicados e datasets para `apps`, `cloud`, `media`, `backups` (zona Trusted).
 - Apps em VMs/LXCs (ou, mais tarde, workloads k3s) com dados persistidos no TrueNAS.
 - Administracao remota via WireGuard; evitar expor interfaces de admin na internet.
+
+## Ordem de construção
+
+**Decidido em 29/07/2026.** A arquitetura alvo (acima) inclui VLANs e uma firewall dedicada desde o início, mas a **ordem de construção** não segue essa mesma ordem: os serviços base (TrueNAS, WireGuard, Caddy, Nextcloud, Jellyfin) são construídos primeiro, numa rede simples sem VLANs (a mesma rede de casa) - só depois é que entra a segmentação de rede (VLANs + firewall dedicada), com os serviços já existentes a serem migrados para as zonas certas.
+
+**Motivo**: construir a VM de firewall dedicada + VLANs (a parte mais nova e menos familiar do projeto) antes de existir qualquer serviço real a funcionar significava arriscar ficar bloqueado logo no início, sem nada a mostrar, e sem ainda haver dados/serviços reais para essa segmentação proteger. Além disso, o RAM continua em 16GB (upgrade para 32GB ainda por fazer, confirmado 29/07/2026) - os serviços base cabem confortavelmente em 16GB; é a firewall dedicada + VLANs + k3s que exigem a folga extra do upgrade. Fazer os serviços primeiro permite progresso real já com o hardware atual.
+
+Isto não muda nenhuma decisão de arquitetura ou tecnologia (continua OpenTofu, continua k3s, continua o desenho de VLANs descrito abaixo) - muda só a ordem pela qual as fases do `docs/CHECKLIST.md` são executadas (Fase 1 = Serviços base, Fase 2 = Rede e Segmentação; antes de 29/07/2026 era o inverso).
 
 ## Rede e Segmentação (VLANs + Firewall)
 
@@ -167,3 +177,4 @@ Checklist completo com estado (feito/pendente) de todas as tarefas: `docs/CHECKL
 - 28/07/2026: identificado o router de casa - Vodafone Smart Router (Huawei OptiXstar HG8247B7-8N). Confirmado via pesquisa web: guest network suportado nativamente (independente do OptiPlex); bridge mode desativado pela Vodafone (reforca a decisao de nao substituir o router pela VM de firewall como gateway); VLANs 802.1Q personalizadas nao confirmadas na interface do router. Decidido manter segmentacao Wi-Fi/guest/IoT fora do ambito das VLANs do homelab e independente do OptiPlex - ver nova seccao "Router de casa e rede domestica".
 - 29/07/2026: criado `docs/ESQUEMA_LOGICO_REDE.md` como documento de referencia proprio para a arquitetura de rede (diagrama, tabela de VLANs, atribuicao de NICs, regras entre zonas), mais facil de consultar do que percorrer o log de decisoes. A seccao "Rede e Segmentacao" deste ficheiro ficou resumida a um pointer.
 - 29/07/2026: auditoria completa de toda a documentacao. Corrigido: "Plano de instalacao (resumo)" (7 passos antigos, sem firewall/VLANs/k3s) substituido por pointer para o CHECKLIST.md; README.md corrigido (Caddy descrito como exposto publicamente, port-forward direto ao reverse proxy - ambos desatualizados); ARQUITETURA_E_FLUXO_DE_TRABALHO.md com Caddy em falta na tabela/diagrama; PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md sem mencionar CHECKLIST.md/ESQUEMA_LOGICO_REDE.md na estrutura recomendada; adicionadas duas pendencias novas (teto de RAM, localizacao do Healthchecks.io) para consistencia entre este ficheiro e o CHECKLIST.md. Corrigido tambem o uso do travessao longo (em-dash) em todos os documentos por hifen simples (instrucao global do utilizador pede isso) - 114 ocorrencias substituidas.
+- 29/07/2026: **decidida a ordem de construcao** (nova seccao "Ordem de construcao") - Fase 1 do CHECKLIST.md passa a ser Servicos base (TrueNAS, WireGuard, Caddy, Nextcloud, Jellyfin, numa rede simples sem VLANs), com a Fase 2 (Rede e Segmentacao - VLANs + firewall dedicada) a vir depois, migrando os servicos ja existentes para as zonas certas. Era o inverso desde 22/07/2026. Motivo: evitar bloquear o primeiro progresso real do projeto na parte mais nova/complexa (firewall dedicada + VLANs) antes de existir qualquer servico a funcionar; confirmado que o RAM continua em 16GB (upgrade ainda por fazer), e os servicos base cabem nisso sem precisar da folga extra que a firewall dedicada + k3s exigem.
