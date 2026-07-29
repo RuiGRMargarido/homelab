@@ -6,6 +6,7 @@ No Obsidian, abre este repositorio como vault e comeca por `Homelab.md` — e a 
 
 Contexto detalhado em `docs/PROJECT_CONTEXT.md`.
 Checklist de implementação (estado de todas as tarefas): `docs/CHECKLIST.md`.
+Esquema lógico de rede (diagrama, VLANs, NICs, regras): `docs/ESQUEMA_LOGICO_REDE.md`.
 Shortlist de hardware em `docs/HARDWARE_SHORTLIST.md`.
 Ferramentas, documentação (Obsidian), monitorização (Slack) e IaC: `docs/PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md`.
 Explicação (para iniciantes) de onde vive cada ferramenta e do fluxo de trabalho: `docs/ARQUITETURA_E_FLUXO_DE_TRABALHO.md`.

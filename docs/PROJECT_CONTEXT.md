@@ -41,89 +41,9 @@ Documento de contexto vivo do projeto. Atualizar quando houver decisoes novas.
 
 ## Rede e Segmentação (VLANs + Firewall)
 
-**Decidido em 22/07/2026.** Substitui a exclusão anterior no Escopo ("não inclui arquitetura detalhada de rede").
+**Decidido em 22/07/2026.** Substitui a exclusão anterior no Escopo ("não inclui arquitetura detalhada de rede"). Desenho completo (diagrama, tabela de VLANs, atribuição de NICs, regras entre zonas) tem documento próprio, mais fácil de consultar: **[`docs/ESQUEMA_LOGICO_REDE.md`](ESQUEMA_LOGICO_REDE.md)**.
 
-### Esquema lógico
-
-```mermaid
-flowchart TB
-    INT(("Internet")):::neut
-    ROUTER["Router de casa<br/>DDNS · port-forward"]:::neut
-    INT --> ROUTER
-    ROUTER -- "rede de casa, sem tag" --> FWWAN
-
-    subgraph FW["VM firewall dedicada · OPNsense / pfSense"]
-        direction LR
-        FWWAN["WAN"]:::fw
-        FWDMZ["DMZ"]:::fw
-        FWTRU["Trusted"]:::fw
-        FWMGM["Mgmt"]:::fw
-    end
-
-    FWDMZ -- "VLAN 10" --> WG
-    FWTRU -- "VLAN 20" --> TN
-    FWMGM -- "VLAN 30" --> PVE
-
-    subgraph DMZ["Zona DMZ"]
-        WG["WireGuard server"]:::dmz
-        FUT["Caddy - app futura (pendente)"]:::dmz
-    end
-
-    subgraph TRUSTED["Zona Trusted"]
-        TN["TrueNAS"]:::tru
-        CADDY["Caddy - HTTPS interno"]:::tru
-        NC["Nextcloud"]:::tru
-        JF["Jellyfin"]:::tru
-        K3S["k3s - nós + workloads"]:::tru
-    end
-
-    subgraph MGMT["Zona Management"]
-        PVE["Proxmox VE - UI/API"]:::mgmt
-        SWG["Switch TL-SG608E"]:::mgmt
-    end
-
-    WG -. "túnel autenticado" .-> TN
-    WG -.-> PVE
-
-    classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
-    classDef fw fill:#5470AD,stroke:#3C568C,color:#F5F7FA
-    classDef dmz fill:#C98A2E,stroke:#9C6B1F,color:#2A1B04
-    classDef tru fill:#3E9678,stroke:#2C7259,color:#F5F7FA
-    classDef mgmt fill:#7B63B8,stroke:#5E4A93,color:#F5F7FA
-```
-
-Legenda: linha sólida = ligação de rede real (uplink ou VLAN com tag); linha tracejada = túnel WireGuard autenticado. Cores: cinzento = internet/router; azul = interfaces da firewall; âmbar = DMZ; verde = Trusted; roxo = Management.
-
-### Hardware
-- Adaptador USB 3.0 -> RJ45 Gigabit (TP-Link) ligado a uma porta USB do OptiPlex (segunda interface de rede, além da NIC onboard).
-- Switch **TP-Link TL-SG608E — "Easy Smart Switch" gerido (8 portas Gigabit)**, com suporte a VLAN 802.1Q (port-based, tag-based e MTU VLAN), QoS, IGMP Snooping e LACP, configurável via GUI web ou o utilitário Easy Smart Configuration ([datasheet oficial TP-Link](https://static.tp-link.com/upload/product-overview/2023/202305/20230511/TL-SG608E(UN)6.6_Datasheet.pdf)). Escolhido precisamente por isto — permite segmentação por VLAN, não é um switch unmanaged.
-
-### Decisão: VM de firewall dedicada (não a firewall nativa do Proxmox)
-Escolhida uma VM de firewall dedicada (tipo OPNsense/pfSense) em vez das regras nativas do Proxmox (Datacenter → Firewall), por ser mais capaz (IDS/IPS, rotas/NAT mais ricas). Ver riscos concretos desta escolha em "Riscos e mitigações" (RAM, lockout, fiabilidade do USB, manutenção).
-
-### Zonas / VLANs
-
-| VLAN | Nome | Subnet | O que vive aqui |
-|---|---|---|---|
-| *(nativa, sem tag)* | WAN-side | rede de casa atual (ex. 192.168.1.0/24) | Só a perna WAN da VM de firewall; o router continua a fazer DDNS + port-forward para aqui |
-| 10 | DMZ | 10.10.10.0/24 | WireGuard (perna internet-facing). Caddy só entra aqui quando houver app decidida para exposição pública |
-| 20 | Trusted | 10.10.20.0/24 | TrueNAS, Caddy (HTTPS interno), Nextcloud, Jellyfin, nós k3s e workloads |
-| 30 | Management | 10.10.30.0/24 | UI/API do Proxmox, gestão do switch, SSH aos nós |
-| — | Túnel WireGuard | 10.10.40.0/24 | **Não é VLAN do switch** — subnet virtual só dentro da VM do WireGuard, atribuída a clientes já autenticados |
-
-### Atribuição de NICs
-- **NIC onboard** → trunk para o switch, a transportar as VLANs 10/20/30 com tag (papel mais crítico, hardware mais fiável).
-- **Adaptador USB→RJ45** → perna WAN, sem tags, ligada à rede de casa/router (papel mais simples, tolera melhor uma eventual instabilidade do adaptador).
-- No switch, só a porta ligada à NIC onboard do OptiPlex precisa de ser trunk; as restantes portas ficam livres para o resto da casa.
-
-### Regras entre zonas
-- DMZ → Trusted: só as portas específicas que os serviços em DMZ precisam de contactar (ex., no futuro, Caddy → backend). Nada mais.
-- DMZ → Management: bloqueado.
-- WAN-side → Management: permitido só a partir do IP do PC do Rui (para OpenTofu/Ansible falarem com a API do Proxmox).
-- Túnel WireGuard → Trusted + Management: permitido (é o próprio propósito do VPN — acesso de administração autenticado).
-
-### Pendente
-Qual app vai efetivamente para a zona DMZ (exposta publicamente via Caddy) — ver "Pendências". Nextcloud e Jellyfin já estão decididos como Trusted-only.
+Resumo: 3 VLANs (10/DMZ, 20/Trusted, 30/Management) + subnet virtual do túnel WireGuard, mediadas por uma **VM de firewall dedicada** (OPNsense/pfSense, não a firewall nativa do Proxmox — escolhida por ser mais capaz, ex. IDS/IPS; riscos concretos desta escolha em "Riscos e mitigações": RAM, lockout, fiabilidade do USB, manutenção). NIC onboard = trunk para o switch; adaptador USB→RJ45 = perna WAN. Pendente: qual app vai efetivamente para a zona DMZ — ver "Pendências". Nextcloud e Jellyfin já decididos como Trusted-only.
 
 ## Router de casa e rede doméstica (fora da segmentação do homelab, novo 28/07/2026)
 
@@ -251,3 +171,4 @@ Checklist completo com estado (feito/pendente) de todas as tarefas: `docs/CHECKL
 - 22/07/2026: decidida a arquitetura de rede completa (substitui a exclusao anterior no Escopo). VLANs: 10/DMZ (WireGuard), 20/Trusted (TrueNAS, Caddy, Nextcloud, Jellyfin, k3s), 30/Management (Proxmox, switch); subnet do tunel WireGuard (10.10.40.0/24) e virtual, nao e VLAN do switch. NIC onboard = trunk para o switch; adaptador USB->RJ45 = perna WAN. Decidida VM de firewall dedicada (OPNsense/pfSense), nao a firewall nativa do Proxmox - riscos (RAM, lockout, fiabilidade do USB, backup da config) registados em "Riscos e mitigacoes". Nextcloud e Jellyfin decididos como Trusted-only (so acesso via WireGuard, sem exposicao publica) - fica pendente decidir qual app vai para a zona DMZ. Seccao "Rede (hardware confirmado, topologia por decidir)" substituida por "Rede e Segmentacao (VLANs + Firewall)". Checklist atualizado com nova Fase 1 dedicada e fases seguintes renumeradas.
 - 28/07/2026: novo requisito - VM Linux para programar e testar agentes/LLMs, com mistura de modelos locais e APIs externas. Hardware sem GPU dedicada (so grafica integrada) limita inferencia local a modelos pequenos/lentos. Zona de rede (Trusted vs. isolada) fica pendente. Reforca o risco de RAM ja registado - ver nova seccao "Ambiente de desenvolvimento e testes de agentes/LLMs".
 - 28/07/2026: identificado o router de casa - Vodafone Smart Router (Huawei OptiXstar HG8247B7-8N). Confirmado via pesquisa web: guest network suportado nativamente (independente do OptiPlex); bridge mode desativado pela Vodafone (reforca a decisao de nao substituir o router pela VM de firewall como gateway); VLANs 802.1Q personalizadas nao confirmadas na interface do router. Decidido manter segmentacao Wi-Fi/guest/IoT fora do ambito das VLANs do homelab e independente do OptiPlex - ver nova seccao "Router de casa e rede domestica".
+- 29/07/2026: criado `docs/ESQUEMA_LOGICO_REDE.md` como documento de referencia proprio para a arquitetura de rede (diagrama, tabela de VLANs, atribuicao de NICs, regras entre zonas), mais facil de consultar do que percorrer o log de decisoes. A seccao "Rede e Segmentacao" deste ficheiro ficou resumida a um pointer.

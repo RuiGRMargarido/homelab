@@ -14,7 +14,7 @@ Convenção: marcar `[x]` só quando verificado a funcionar (não quando "aplica
 
 ## Fase 1 — Rede e Segmentação (VLANs + Firewall)
 
-Arquitetura completa (tabela de VLANs, regras entre zonas) em [PROJECT_CONTEXT.md §Rede e Segmentação](PROJECT_CONTEXT.md#rede-e-segmentacao-vlans--firewall).
+Diagrama, tabela de VLANs, atribuição de NICs e regras entre zonas: [ESQUEMA_LOGICO_REDE.md](ESQUEMA_LOGICO_REDE.md). Decisão e riscos: [PROJECT_CONTEXT.md §Rede e Segmentação](PROJECT_CONTEXT.md#rede-e-segmentacao-vlans--firewall).
 
 - [ ] Configurar porta trunk no switch TL-SG608E (VLANs 10/20/30 com tag) ligada à NIC onboard do OptiPlex
 - [ ] Configurar a NIC onboard do Proxmox como bridge VLAN-aware (trunk DMZ/Trusted/Management)
@@ -87,3 +87,4 @@ Ver [PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md §2](PLANO_FERRAMENTAS_E_BOAS_PRATICAS
 - 22/07/2026: correção — o TL-SG608E tinha sido descrito como "unmanaged, sem VLANs"; confirmado (datasheet oficial TP-Link) que é um Easy Smart Switch gerido com suporte a VLAN 802.1Q. Corrigido em [PROJECT_CONTEXT.md §Rede e Segmentação](PROJECT_CONTEXT.md#rede-e-segmentacao-vlans--firewall).
 - 22/07/2026: consolidada a arquitetura de rede completa — nova Fase 1 "Rede e Segmentação" (VLANs 10/DMZ, 20/Trusted, 30/Management + VM de firewall dedicada), Nextcloud e Jellyfin decididos como Trusted-only (só via WireGuard), e nova decisão em aberto sobre qual app expor via DMZ. Fases seguintes renumeradas (+1).
 - 28/07/2026: novo requisito — VM Linux para programar e testar agentes/LLMs (modelos locais + APIs externas). Adicionadas duas decisões em aberto: zona de rede desta VM, e confirmar o teto real de RAM do OptiPlex (o pressuposto de 32GB pode não chegar).
+- 29/07/2026: criado `docs/ESQUEMA_LOGICO_REDE.md`; link da Fase 1 atualizado para apontar para lá em vez de só para o PROJECT_CONTEXT.md.

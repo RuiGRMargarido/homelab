@@ -9,6 +9,7 @@ Nota principal (MOC — *map of content*) do projeto. Começa sempre por aqui.
 ## Estado e decisões
 - [Contexto e histórico do projeto](docs/PROJECT_CONTEXT.md) — objetivo, arquitetura, estado atual e decisões.
 - [Checklist de implementação](docs/CHECKLIST.md) — estado (feito/pendente) de todas as tarefas, por fase.
+- [Esquema lógico de rede](docs/ESQUEMA_LOGICO_REDE.md) — diagrama, VLANs, atribuição de NICs e regras entre zonas.
 - [Shortlist de hardware](docs/HARDWARE_SHORTLIST.md) — critérios e opções consideradas para o host.
 
 ## Como trabalhar neste projeto
