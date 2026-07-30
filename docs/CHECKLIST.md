@@ -26,7 +26,7 @@ Regista os acessos (URLs, utilizadores, passwords, caminhos) em `docs/SEGREDOS.m
 - [x] Instalar WireGuard (LXC 103, privilegiado, Debian 12) - servidor a correr, túnel `10.10.40.0/24`, porta `51820`
   - [x] Reserva DHCP no router para o LXC (MAC `bc:24:11:52:25:67` → 192.168.1.78)
   - [x] Decidido reaproveitar o DDNS da v1 - No-IP, `HOSTNAME.ddns.net` (ver `SEGREDOS.md`)
-  - [ ] Port-forward UDP 51820 no router para o LXC
+  - [x] Port-forward UDP 51820 no router para 192.168.1.78 (regra "Wireguard" reaproveitada da v1, IP atualizado)
   - [ ] Adicionar o primeiro peer (cliente) e testar ligação de fora de casa
 - [ ] Instalar Caddy (por agora só HTTPS interno via VPN - sem exposição pública até haver uma app decidida, ver Pendências)
 - [ ] Instalar Nextcloud (**só acesso via WireGuard** - decidido 22/07/2026, não expor publicamente), com storage a apontar para o TrueNAS
