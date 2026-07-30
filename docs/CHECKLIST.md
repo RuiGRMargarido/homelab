@@ -86,7 +86,7 @@ Ver [PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md §2](PLANO_FERRAMENTAS_E_BOAS_PRATICAS
 - [ ] Confirmar o teto real de RAM do OptiPlex 3060 Micro (assumido 32GB até agora) - o novo requisito de agentes/LLMs pode justificar mais
 - [ ] Se o Healthchecks.io corre como workload no k3s (como o Uptime Kuma) ou fica à parte - ainda não especificado em nenhum documento
 - [ ] Decidir se/quando recriar a stack RAG (Open WebUI + Ollama + Qdrant) da v1
-- [ ] Confirmar destino/desligamento do PC antigo (v1) após o v2 estar operacional
+- [ ] Confirmar destino do PC antigo (v1) após o v2 estar operacional - confirmado (29/07/2026) que está atualmente desligado; falta só decidir o destino final (guardar, reaproveitar, vender)
 
 ## Histórico
 
