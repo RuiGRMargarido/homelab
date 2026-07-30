@@ -24,10 +24,10 @@ Regista os acessos (URLs, utilizadores, passwords, caminhos) em `docs/SEGREDOS.m
 - [x] Configurar partilhas SMB para `shares`, `media` e `backups` (utilizador dedicado `rui`, criado com SMB Access apenas - ver `SEGREDOS.md`), e export NFS para `media` (para o Jellyfin, mais tarde)
 - [x] Decidido/criado dataset `nextcloud` (novo, dedicado) - não reaproveitado `shares`/`projects`, para não misturar a gestão própria do Nextcloud (permissões, snapshots, quota) com ficheiros geridos manualmente
 - [x] Instalar WireGuard (LXC 103, privilegiado, Debian 12) - servidor a correr, túnel `10.10.40.0/24`, porta `51820`
-  - [ ] Reserva DHCP no router para o LXC (MAC `bc:24:11:52:25:67`)
-  - [ ] Decidir se reaproveita DDNS da v1 ou cria novo
-  - [ ] Adicionar o primeiro peer (cliente) e testar ligação de fora de casa
+  - [x] Reserva DHCP no router para o LXC (MAC `bc:24:11:52:25:67` → 192.168.1.78)
+  - [x] Decidido reaproveitar o DDNS da v1 - No-IP, `HOSTNAME.ddns.net` (ver `SEGREDOS.md`)
   - [ ] Port-forward UDP 51820 no router para o LXC
+  - [ ] Adicionar o primeiro peer (cliente) e testar ligação de fora de casa
 - [ ] Instalar Caddy (por agora só HTTPS interno via VPN - sem exposição pública até haver uma app decidida, ver Pendências)
 - [ ] Instalar Nextcloud (**só acesso via WireGuard** - decidido 22/07/2026, não expor publicamente), com storage a apontar para o TrueNAS
 - [ ] Instalar/recriar Jellyfin (mesmo padrão da v1: só via WireGuard), com storage a apontar para o TrueNAS
