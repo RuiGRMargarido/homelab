@@ -39,7 +39,7 @@ Documento de contexto vivo do projeto. Atualizar quando houver decisoes novas.
 - VM de firewall dedicada (tipo OPNsense/pfSense) media todo o trafego entre zonas - ver "Rede e Segmentacao (VLANs + Firewall)".
 - TrueNAS em VM com disco(s) dedicados (zona Trusted). Datasets: mantida a estrutura antiga da v1 (`media`, `backups`, `jellyfin_config`, `ISO`, `projects`, `shares`) em vez de criar `apps`/`cloud`/`media`/`backups` do zero - decidido 29/07/2026 ao importar o pool `tank_test`. Detalhe em `docs/CHECKLIST.md` §Fase 1.
 - Apps em VMs/LXCs (ou, mais tarde, workloads k3s) com dados persistidos no TrueNAS.
-- **Prática (decidida 29/07/2026): todo o servidor/VM do homelab tem reserva DHCP no router** (nunca DHCP puramente dinâmico) - IP estável sem mexer na configuração de rede de cada VM. Ver `docs/SEGREDOS.md` §Reservas DHCP para a lista.
+- **Prática (decidida 29/07/2026, revista 31/07/2026): todo o servidor/VM do homelab tem IP estático configurado localmente** (`/etc/network/interfaces`), mais reserva DHCP no router como consistência/documentação. Revisto depois de dois LXCs perderem o IPv4 com o lease a expirar sem renovar sozinho - ver detalhe do incidente em `docs/CHECKLIST.md` §Fase 1. Ver `docs/SEGREDOS.md` §VMs e Containers para a lista.
 - Administracao remota via WireGuard; evitar expor interfaces de admin na internet.
 
 ## Ordem de construção
