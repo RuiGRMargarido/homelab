@@ -16,34 +16,26 @@ Para passwords/tokens importantes, o ideal é guardá-los também (ou só) num g
 
 ## VMs e Containers (Proxmox) - inclui reserva DHCP
 
-Prática: todo servidor/VM tem reserva DHCP no router (nunca DHCP puramente dinâmico).
+Prática: todo servidor/VM tem IP estático configurado localmente (`/etc/network/interfaces`), mais reserva DHCP no router como documentação/consistência (nunca depender só de DHCP dinâmico - o lease pode expirar sem renovar sozinho).
 
 | ID | Nome | Tipo | IP | MAC | Reserva feita? | Notas |
 |---|---|---|---|---|---|---|
 | | | VM/LXC | | | | |
 
-## Acessos administrativos por serviço
+## \<Nome do serviço com vários utilizadores ou configuração própria\> (ex.: TrueNAS, Nextcloud, Jellyfin)
 
-| Serviço | Acesso | Utilizador | Password |
-|---|---|---|---|
-| TrueNAS - interface web | https://\<ip-da-vm-truenas\> | | |
-| TrueNAS - SMB/partilhas | \\\\\<ip\>\\ | | |
-| VM Firewall (OPNsense/pfSense) | https://\<ip-da-vm-firewall\> | | |
-| Nextcloud | https://\<url-interna\> | | |
-| Jellyfin | http://\<ip\>:8096 | | |
-| Uptime Kuma | http://\<ip\>:3001 | | |
-| k3s (kubectl) | *(ver kubeconfig, caminho abaixo)* | | |
-| GitHub | github.com/\<utilizador\>/\<repo\> | | *(gerido pelo Git Credential Manager, não precisa de estar aqui)* |
-
-## DNS dinâmico (acesso de fora de casa)
+Cria uma secção destas para cada serviço que tenha mais do que um utilizador, ou configuração suficiente para justificar uma secção própria (segue o padrão do WireGuard abaixo). Serviços simples (só uma consola root) ficam na tabela genérica "Acessos administrativos por serviço".
 
 | Campo | Valor |
 |---|---|
-| Provedor | \<No-IP / DuckDNS / Dynu / outro\> |
-| Hostname | |
-| Plano | |
-| Login da conta | |
-| Notas | *(ex.: planos free podem exigir confirmação periódica do hostname)* |
+| Onde corre | |
+| Acesso | |
+
+### Contas de utilizador
+
+| Utilizador | Password | Notas |
+|---|---|---|
+| | | |
 
 ## WireGuard
 
@@ -58,6 +50,32 @@ Prática: todo servidor/VM tem reserva DHCP no router (nunca DHCP puramente din�
 | Chave privada do servidor | *(caminho no servidor, nunca colar aqui)* |
 | Configs dos clientes (peers) | *(caminho)* |
 | Port-forward no router | |
+
+### Peers (clientes)
+
+| Nome | IP no túnel | Ficheiro no servidor |
+|---|---|---|
+
+## Acessos administrativos por serviço
+
+Só serviços sem secção própria acima (consolas de sistema, ou ainda por criar).
+
+| Serviço | Acesso | Utilizador | Password |
+|---|---|---|---|
+| VM Firewall (OPNsense/pfSense) | https://\<ip-da-vm-firewall\> | | |
+| Uptime Kuma | http://\<ip\>:3001 | | |
+| k3s (kubectl) | *(ver kubeconfig, caminho abaixo)* | | |
+| GitHub | github.com/\<utilizador\>/\<repo\> | | *(gerido pelo Git Credential Manager, não precisa de estar aqui)* |
+
+## DNS dinâmico (acesso de fora de casa)
+
+| Campo | Valor |
+|---|---|
+| Provedor | \<No-IP / DuckDNS / Dynu / outro\> |
+| Hostname | |
+| Plano | |
+| Login da conta | |
+| Notas | *(ex.: planos free podem exigir confirmação periódica do hostname)* |
 
 ## Tokens e chaves de API
 
@@ -89,3 +107,4 @@ Prática: todo servidor/VM tem reserva DHCP no router (nunca DHCP puramente din�
 
 - 29/07/2026: criado este modelo e o `docs/SEGREDOS.md` (local, gitignored) correspondente.
 - 29/07/2026: reestruturado para acompanhar a reorganização do `SEGREDOS.md` (secções separadas para VMs/containers, acessos por serviço, DNS dinâmico, WireGuard).
+- 31/07/2026: reestruturado outra vez - prática de IP estático (não só DHCP) para VMs/LXCs; serviços com vários utilizadores passam a ter secção própria com sub-tabela "Contas de utilizador" (padrão do WireGuard "Peers"), em vez de linhas repetidas na tabela genérica.
