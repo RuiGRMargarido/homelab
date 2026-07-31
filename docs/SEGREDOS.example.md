@@ -6,6 +6,19 @@ Se estás a configurar este projeto de novo (nova máquina, ou a começar do zer
 
 Para passwords/tokens importantes, o ideal é guardá-los também (ou só) num gestor de passwords (Bitwarden, KeePassXC, etc.) - este ficheiro serve para referência rápida e para os campos que não são segredo em si (URLs, caminhos, nomes de utilizador).
 
+## Índice
+
+- [Infraestrutura base](#infraestrutura-base)
+- [VMs e Containers (Proxmox)](#vms-e-containers-proxmox---inclui-reserva-dhcp)
+- [Serviço com vários utilizadores (modelo)](#nome-do-serviço-com-vários-utilizadores-ou-configuração-própria-ex-truenas-nextcloud-jellyfin)
+- [WireGuard](#wireguard)
+- [Acessos administrativos por serviço](#acessos-administrativos-por-serviço)
+- [DNS dinâmico](#dns-dinâmico-acesso-de-fora-de-casa)
+- [Tokens e chaves de API](#tokens-e-chaves-de-api)
+- [Ficheiros de chaves](#ficheiros-de-chaves-não-inlinar-o-conteúdo-aqui-só-o-caminho)
+- [Datasets e caminhos importantes](#datasets-e-caminhos-importantes)
+- [Histórico](#histórico)
+
 ## Infraestrutura base
 
 | Serviço | URL / endereço | Utilizador | Password |
