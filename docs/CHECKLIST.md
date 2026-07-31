@@ -28,7 +28,8 @@ Regista os acessos (URLs, utilizadores, passwords, caminhos) em `docs/SEGREDOS.m
   - [x] Decidido reaproveitar o DDNS da v1 - No-IP, `HOSTNAME.ddns.net` (ver `SEGREDOS.md`)
   - [x] Port-forward UDP 51820 no router para 192.168.1.78 (regra "Wireguard" reaproveitada da v1, IP atualizado)
   - [x] Adicionado o primeiro peer ("phone", 10.10.40.2) e testada ligação de fora de casa - **funcionou**
-- [ ] Instalar Caddy (por agora só HTTPS interno via VPN - sem exposição pública até haver uma app decidida, ver Pendências)
+- [x] Instalar Caddy (LXC 101, Debian 12) - serviço a correr com configuração por omissão (por agora só HTTPS interno via VPN - sem exposição pública até haver uma app decidida, ver Pendências); Caddyfile real (`reverse_proxy`) fica para quando o Nextcloud/Jellyfin existirem
+  - [x] Reserva DHCP no router para o LXC (MAC `bc:24:11:de:f8:97` → 192.168.1.83)
 - [ ] Instalar Nextcloud (**só acesso via WireGuard** - decidido 22/07/2026, não expor publicamente), com storage a apontar para o TrueNAS
 - [ ] Instalar/recriar Jellyfin (mesmo padrão da v1: só via WireGuard), com storage a apontar para o TrueNAS
 - [ ] Automatizar backups para o SSD externo 1TB e testar um restore completo
@@ -107,3 +108,4 @@ Ver [PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md §2](PLANO_FERRAMENTAS_E_BOAS_PRATICAS
 - 29/07/2026: criado dataset `nextcloud` (novo, dedicado) no TrueNAS - decidido não reaproveitar `shares`/`projects`, para o Nextcloud ter permissões/snapshots/quota próprios sem misturar com ficheiros geridos manualmente.
 - 29/07/2026: criado LXC WireGuard (103, privilegiado, Debian 12, 1 core/512MB/4GB disco, `vmbr0`). Corrigido um problema de rede - o `/etc/network/interfaces` não tinha entrada para `eth0` (só `lo`), por isso a interface nunca arrancava sozinha; adicionada `auto eth0` + `iface eth0 inet dhcp`. Servidor WireGuard instalado e a correr (túnel `10.10.40.0/24`, porta `51820`, chaves geradas). Faltam: reserva DHCP, decisão de DDNS, primeiro peer, port-forward.
 - 29/07/2026: **WireGuard completo e validado** - reserva DHCP feita (192.168.1.78), DDNS decidido (reaproveitado o No-IP da v1, `HOSTNAME.ddns.net`), port-forward UDP 51820 configurado no router, primeiro peer ("phone") criado e ligação testada com sucesso a partir de fora de casa. Decidido não guardar o QR code/config do cliente como ficheiro em lado nenhum (contém a chave privada do cliente) - regenera-se sempre a partir do servidor, receita em `SEGREDOS.md`.
+- 31/07/2026: criado LXC Caddy (101, Debian 12, 1 core/512MB/4GB disco, `vmbr0`). Reapareceu o mesmo bug de rede do WireGuard (`/etc/network/interfaces` sem entrada para `eth0`) - mesma correção aplicada (`auto eth0` + `iface eth0 inet dhcp`). Caddy instalado e a correr (`systemctl status caddy` ativo, página por omissão na porta 80). Reserva DHCP feita (192.168.1.83). Configuração real do Caddyfile (reverse proxy para Nextcloud/Jellyfin) fica para quando esses serviços existirem.
