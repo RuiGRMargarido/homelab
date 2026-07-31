@@ -10,9 +10,9 @@ Para passwords/tokens importantes, o ideal é guardá-los também (ou só) num g
 
 - [Infraestrutura base](#infraestrutura-base)
 - [VMs e Containers (Proxmox)](#vms-e-containers-proxmox---inclui-reserva-dhcp)
+- [Acessos administrativos por serviço](#acessos-administrativos-por-serviço)
 - [Serviço com vários utilizadores (modelo)](#nome-do-serviço-com-vários-utilizadores-ou-configuração-própria-ex-truenas-nextcloud-jellyfin)
 - [WireGuard](#wireguard)
-- [Acessos administrativos por serviço](#acessos-administrativos-por-serviço)
 - [DNS dinâmico](#dns-dinâmico-acesso-de-fora-de-casa)
 - [Tokens e chaves de API](#tokens-e-chaves-de-api)
 - [Ficheiros de chaves](#ficheiros-de-chaves-não-inlinar-o-conteúdo-aqui-só-o-caminho)
@@ -35,16 +35,31 @@ Prática: todo servidor/VM tem IP estático configurado localmente (`/etc/networ
 |---|---|---|---|---|---|---|
 | | | VM/LXC | | | | |
 
+## Acessos administrativos por serviço
+
+Tabela central com um acesso principal por serviço. Para serviços com mais do que uma conta, a última coluna liga para a lista completa na secção própria do serviço (ver exemplo abaixo).
+
+| Serviço | Acesso | Utilizador (principal) | Password | Todas as contas |
+|---|---|---|---|---|
+| \<Serviço com uma só conta\> | | | | - |
+| \<Serviço com várias contas\> | | | | [Contas →](#contas-de-utilizador-nome-do-servico) |
+| VM Firewall (OPNsense/pfSense) | https://\<ip-da-vm-firewall\> | | | - |
+| Uptime Kuma | http://\<ip\>:3001 | | | - |
+| k3s (kubectl) | *(ver kubeconfig, caminho abaixo)* | | | - |
+| GitHub | github.com/\<utilizador\>/\<repo\> | | *(gerido pelo Git Credential Manager, não precisa de estar aqui)* | - |
+
 ## \<Nome do serviço com vários utilizadores ou configuração própria\> (ex.: TrueNAS, Nextcloud, Jellyfin)
 
-Cria uma secção destas para cada serviço que tenha mais do que um utilizador, ou configuração suficiente para justificar uma secção própria (segue o padrão do WireGuard abaixo). Serviços simples (só uma consola root) ficam na tabela genérica "Acessos administrativos por serviço".
+Cria uma secção destas para cada serviço que tenha mais do que um utilizador, ou configuração suficiente para justificar uma secção própria (segue o padrão do WireGuard abaixo). Serviços simples (só uma consola root) ficam só na tabela genérica "Acessos administrativos por serviço".
 
 | Campo | Valor |
 |---|---|
 | Onde corre | |
 | Acesso | |
 
-### Contas de utilizador
+### Contas de utilizador (Nome do Serviço)
+
+Inclui o nome do serviço no título (ex. "Contas de utilizador (Nextcloud)"), para a ligação a partir da tabela central não depender da ordem das secções no documento.
 
 | Utilizador | Password | Notas |
 |---|---|---|
@@ -68,17 +83,6 @@ Cria uma secção destas para cada serviço que tenha mais do que um utilizador,
 
 | Nome | IP no túnel | Ficheiro no servidor |
 |---|---|---|
-
-## Acessos administrativos por serviço
-
-Só serviços sem secção própria acima (consolas de sistema, ou ainda por criar).
-
-| Serviço | Acesso | Utilizador | Password |
-|---|---|---|---|
-| VM Firewall (OPNsense/pfSense) | https://\<ip-da-vm-firewall\> | | |
-| Uptime Kuma | http://\<ip\>:3001 | | |
-| k3s (kubectl) | *(ver kubeconfig, caminho abaixo)* | | |
-| GitHub | github.com/\<utilizador\>/\<repo\> | | *(gerido pelo Git Credential Manager, não precisa de estar aqui)* |
 
 ## DNS dinâmico (acesso de fora de casa)
 
@@ -121,3 +125,4 @@ Só serviços sem secção própria acima (consolas de sistema, ou ainda por cri
 - 29/07/2026: criado este modelo e o `docs/SEGREDOS.md` (local, gitignored) correspondente.
 - 29/07/2026: reestruturado para acompanhar a reorganização do `SEGREDOS.md` (secções separadas para VMs/containers, acessos por serviço, DNS dinâmico, WireGuard).
 - 31/07/2026: reestruturado outra vez - prática de IP estático (não só DHCP) para VMs/LXCs; serviços com vários utilizadores passam a ter secção própria com sub-tabela "Contas de utilizador" (padrão do WireGuard "Peers"), em vez de linhas repetidas na tabela genérica.
+- 01/08/2026: "Acessos administrativos por serviço" volta a ser a tabela central (uma linha por serviço), logo a seguir a "VMs e Containers", com uma coluna "Todas as contas" a ligar para a sub-tabela de cada serviço. Títulos "### Contas de utilizador" passam a incluir o nome do serviço entre parênteses.
