@@ -207,11 +207,133 @@ Dois detalhes que já custaram tempo a perceber:
 - **As regras 1 e 2 têm origem no IP do WireGuard, não na rede DMZ inteira.** É o efeito do `MASQUERADE` do WireGuard: o tráfego de um cliente VPN chega à firewall como se viesse de `10.10.10.10`. O efeito lateral bom é que a regra geral "DMZ → Management: bloqueado" continua válida para qualquer serviço futuro que venha a viver na DMZ.
 - **As regras *anti-lockout* explicam porque `https://10.10.10.1` funciona sem regra própria.** Elas cobrem TCP 80/443 para a própria firewall, mas não cobrem ICMP - por isso um `ping` ao OPNsense a partir da DMZ falha sem que isso seja sintoma de nada.
 
+### Matriz: quem pode falar com quem
+
+Só as ligações **iniciadas** contam. Respostas a ligações já estabelecidas passam sempre, porque o OPNsense é *stateful* - por isso uma seta em falta não quer dizer que a resposta não volta, quer dizer que aquele lado não consegue ser o primeiro a falar.
+
+| De ↓ / Para → | Internet | Rede plana | DMZ | Trusted | Management |
+|---|---|---|---|---|---|
+| **Internet** | - | *(router)* | Só UDP 51820 | Não | Não |
+| **Rede plana** | Sim *(router)* | Sim | Não | Não | Não |
+| **DMZ** (WireGuard) | *(ver nota)* | Não | - | **Tudo** | **Tudo** |
+| **Trusted** | *(sem clientes)* | Não | Não | - | Não |
+| **Management** | Sim | Sim | **Tudo** | **Tudo** | - |
+
+```mermaid
+flowchart LR
+    NET(("Internet")):::neut
+    DMZ["DMZ<br/>WireGuard"]:::dmz
+    TRU["Trusted<br/>(vazia)"]:::vazio
+    MGM["Management<br/>Proxmox"]:::mgmt
+
+    NET -- "UDP 51820 · DNAT" --> DMZ
+    DMZ -- "tudo" --> TRU
+    DMZ -- "tudo" --> MGM
+    MGM -- "tudo" --> DMZ
+    MGM -- "tudo" --> TRU
+    MGM -- "tudo" --> NET
+
+    classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
+    classDef dmz fill:#C98A2E,stroke:#9C6B1F,color:#2A1B04
+    classDef mgmt fill:#7B63B8,stroke:#5E4A93,color:#F5F7FA
+    classDef vazio fill:#4A5058,stroke:#343941,color:#C8CDD4
+```
+
+Duas leituras incómodas que a matriz torna óbvias:
+
+- **A zona Management é hoje a mais poderosa da rede**, não a mais protegida. A regra `MGMT → any` foi criada para desbloquear o host Proxmox e acabou a dar-lhe acesso irrestrito a tudo. Faz sentido enquanto só lá vive o Proxmox, mas deixa de fazer no momento em que o switch (ou qualquer outra coisa) entrar nesta zona.
+- **A DMZ tem acesso total à Trusted e à Management.** Está restringida ao IP do WireGuard, o que a torna aceitável por agora, mas o `Tudo` devia ser uma lista curta de portas. É a diferença entre "o meu VPN funciona" e "o meu VPN só faz o que precisa".
+
 ### Regras ainda por escrever (alvo)
 
 - **DMZ → Trusted deve ser restringida a portas específicas.** Hoje a regra 1 permite qualquer porta; o alvo é só o que os serviços em DMZ precisam mesmo de contactar.
 - **WAN-side → Management**, permitido só a partir do IP do PC do Rui (OpenTofu/Ansible → API do Proxmox). Só passa a fazer sentido na Fase 4, quando existir IaC.
 - **Regras para a Trusted**, quando lá viver alguma coisa - hoje a zona está vazia, por isso não há nada a permitir nem a negar.
+- **Confirmar a saída da DMZ para a internet.** Não existe regra explícita `DMZ → WAN`. O túnel WireGuard funciona à mesma (as respostas saem por *state tracking* da ligação de entrada), mas um `apt update` de dentro do LXC 103 deve estar bloqueado. A confirmar quando for preciso atualizar esse container.
+
+## Caminhos de pacote (ponta a ponta)
+
+Estes diagramas seguem um pedido real desde a origem até ao destino, passo a passo. Servem para diagnosticar: quando alguma coisa não funciona, percorre-se a cadeia e testa-se cada salto até encontrar o que falha.
+
+### Fluxo 1: telemóvel fora de casa quer ver o Jellyfin
+
+O caminho mais comprido do homelab, e o que mais vezes partiu. Cada salto numerado é um sítio onde já houve (ou pode haver) uma falha.
+
+```mermaid
+sequenceDiagram
+    participant C as Telemóvel<br/>(dados móveis)
+    participant D as No-IP<br/>(DDNS)
+    participant R as Router<br/>192.168.1.1
+    participant F as OPNsense<br/>WAN .95
+    participant W as WireGuard<br/>10.10.10.10
+    participant J as Jellyfin<br/>192.168.1.87
+
+    C->>D: 1. resolve HOSTNAME.ddns.net
+    D-->>C: IP público de casa
+    C->>R: 2. UDP 51820 para o IP público
+    R->>F: 3. Port Mapping para 192.168.1.95
+    F->>W: 4. DNAT para 10.10.10.10:51820
+    W-->>C: 5. handshake WireGuard
+    C->>W: 6. pedido HTTP pelo túnel
+    W->>J: 7. MASQUERADE, sai como 10.10.10.10
+    J-->>C: 8. resposta pelo mesmo caminho
+```
+
+| Salto | O que pode falhar | Como testar |
+|---|---|---|
+| 1 | DDNS desatualizado face ao IP público real | `Resolve-DnsName HOSTNAME.ddns.net` e comparar com o IP público atual |
+| 2 | IP público mudou, ou o ISP bloqueia a porta | comparar os dois valores do salto 1 |
+| 3 | **Port Mapping a apontar para o IP errado** | ver a regra no router; foi exatamente esta a causa do incidente de 06/08/2026 |
+| 4 | Regra de NAT em falta ou com destino errado | Firewall → NAT → Port Forward no OPNsense |
+| 5 | Chaves trocadas, ou o pacote nem chega | `pct exec 103 -- wg show` deve mostrar *latest handshake* recente |
+| 6 | Cliente sem rota para o destino | ver `AllowedIPs` na config do cliente |
+| 7 | Falta regra de firewall para a zona de destino | Firewall → Rules → DMZ |
+| 8 | Serviço de destino em baixo | testar o serviço a partir da rede local |
+
+**Nota**: o salto 7 hoje sai para a **rede plana** (`192.168.1.87`), não para a Trusted, porque o Jellyfin ainda não foi migrado. Quando for, o destino passa a `10.10.20.x` e o caminho passa mesmo a atravessar a firewall, e não a contorná-la.
+
+### Fluxo 2: Nextcloud lê um ficheiro do TrueNAS
+
+Curto em rede mas comprido em camadas, e é onde se concentram os incidentes de storage. Detalhe completo da cadeia de dados em [ESQUEMA_DADOS_E_STORAGE.md](ESQUEMA_DADOS_E_STORAGE.md).
+
+```mermaid
+sequenceDiagram
+    participant N as Docker<br/>nextcloud
+    participant L as LXC 104<br/>/mnt/nextcloud-data
+    participant H as Proxmox host<br/>/mnt/pve/nextcloud-nfs
+    participant T as TrueNAS<br/>192.168.1.66
+
+    N->>L: 1. escreve em /var/www/html/data
+    L->>H: 2. bind mount (mp0)
+    H->>T: 3. NFS sobre a rede plana
+    T->>T: 4. grava no dataset ZFS
+```
+
+Nenhum destes saltos passa pela firewall dedicada: TrueNAS e Nextcloud estão ambos na rede plana. É a consequência prática de a Trusted ainda estar vazia, e é o que muda quando a migração acontecer.
+
+| Salto | Falha típica já vista |
+|---|---|
+| 2 | Bind mount a mostrar a pasta local vazia em vez do NFS, depois de o host reiniciar antes do TrueNAS. Só se resolve reiniciando o container, corrigir o mount do host não chega |
+| 3 | Mount em falta no arranque (resolvido com `nofail,_netdev` no fstab) |
+| 4 | `Operation not permitted` no `chown`, por o export estar em `Maproot` em vez de `Mapall` |
+
+### Fluxo 3: PC de casa abre o Proxmox
+
+O caminho mais curto que existe, e por isso o mais fiável. É a via de recurso quando tudo o resto falha.
+
+```mermaid
+flowchart LR
+    PC["PC do Rui"]:::flat
+    SW["Switch<br/>VLAN 1"]:::neut
+    PVE["Proxmox<br/>192.168.1.206:8006"]:::flat
+
+    PC --> SW --> PVE
+
+    classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
+    classDef flat fill:#B5651D,stroke:#8A4A15,color:#FFF8F0
+```
+
+Não toca na firewall, não depende do OPNsense nem do WireGuard. **É por isto que o IP antigo do Proxmox na rede plana não deve ser removido** enquanto a firewall for o único caminho para a zona Management: foi o único acesso que se manteve durante o incidente de 06/08/2026, e foi por ele que se chegou à GUI do OPNsense por túnel SSH para corrigir as regras.
 
 ## Rede doméstica (fora deste esquema)
 

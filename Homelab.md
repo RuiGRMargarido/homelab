@@ -9,7 +9,8 @@ Nota principal (MOC - *map of content*) do projeto. Começa sempre por aqui.
 ## Estado e decisões
 - [Contexto e histórico do projeto](docs/PROJECT_CONTEXT.md) - objetivo, arquitetura, estado atual e decisões.
 - [Checklist de implementação](docs/CHECKLIST.md) - estado (feito/pendente) de todas as tarefas, por fase.
-- [Esquema lógico de rede](docs/ESQUEMA_LOGICO_REDE.md) - diagrama, VLANs, atribuição de NICs e regras entre zonas.
+- [Esquema lógico de rede](docs/ESQUEMA_LOGICO_REDE.md) - estado atual vs alvo, VLANs, inventário de componentes, regras entre zonas e caminhos de pacote ponta a ponta.
+- [Esquema de dados e storage](docs/ESQUEMA_DADOS_E_STORAGE.md) - do disco físico ao container: ZFS, NFS, bind mounts, backup e dependências de arranque.
 - [Shortlist de hardware](docs/HARDWARE_SHORTLIST.md) - critérios e opções consideradas para o host.
 - `docs/SEGREDOS.md` - acessos, tokens e caminhos. **Só existe nesta máquina** (gitignored, não aparece no GitHub) - o link não funciona noutro dispositivo sem copiares o ficheiro à parte. Modelo sem valores reais: [SEGREDOS.example.md](docs/SEGREDOS.example.md).
 
