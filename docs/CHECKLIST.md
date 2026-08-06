@@ -88,10 +88,11 @@ Ver [PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md §3](PLANO_FERRAMENTAS_E_BOAS_PRATICAS
 Ver [PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md §2](PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md#2-documentação--obsidian).
 
 - [ ] Abrir o repo como vault no Obsidian
-- [ ] Instalar o plugin `obsidian-git` e confirmar sync entre dispositivos
+- [ ] Instalar o plugin `obsidian-git` e confirmar sync entre dispositivos - **nota (06/08/2026)**: `.obsidian/plugins/` passou a estar no `.gitignore` quando o repo foi preparado para ser público (não faz sentido versionar código de terceiros num portefólio). A configuração do vault continua a sincronizar; só o plugin em si é que tem de ser instalado à mão da primeira vez em cada dispositivo novo, o que é um clique na loja de plugins do Obsidian
 - [ ] Criar `docs/services/` com uma nota por serviço à medida que cada um for instalado
 - [ ] Criar `docs/runbooks/` com o primeiro procedimento de recuperação (ex.: TrueNAS)
 - [ ] Aplicar tags (`#pendente`, `#decisão`, `#risco`, `#servico`) nas notas existentes
+- [ ] **Traduzir a documentação para inglês** - adiado por decisão de 06/08/2026, quando o repo passou a portefólio público. Por agora só o `README.md` está em inglês, a servir de porta de entrada; o resto fica em português enquanto o projeto está em construção ativa (traduzir agora obrigaria a manter duas versões sincronizadas a cada alteração, e as alterações ainda são frequentes). Quando se fizer, os candidatos com mais retorno são o `ESQUEMA_LOGICO_REDE.md` e o `ESQUEMA_DADOS_E_STORAGE.md`, por serem os mais visuais e os que um visitante estrangeiro consegue aproveitar mesmo sem ler tudo
 
 ## Decisões em aberto (não são tarefas - precisam de decisão antes de virar tarefa)
 
