@@ -1,47 +1,133 @@
-# HomeLab
+# Homelab
 
-Projeto em criacao (v2, Dell OptiPlex 3060 Micro). Este repositorio e, a partir de agora, o local oficial de todo o trabalho deste novo homelab.
+A self-hosted infrastructure project built on a single refurbished mini PC: a VLAN-segmented network behind a dedicated firewall, running NAS, personal cloud, media streaming and VPN services, with automated and restore-tested backups.
 
-No Obsidian, abre este repositorio como vault e comeca por `Homelab.md` - e a nota principal (MOC) com links para tudo o resto.
+Everything here is documented as it was actually built, including the parts that broke. The incident write-ups are the point, not an afterthought.
 
-Contexto detalhado em `docs/PROJECT_CONTEXT.md`.
-Checklist de implementação (estado de todas as tarefas): `docs/CHECKLIST.md`.
-Esquema lógico de rede (estado atual vs alvo, VLANs, regras, caminhos de pacote): `docs/ESQUEMA_LOGICO_REDE.md`.
-Esquema de dados e storage (ZFS, NFS, bind mounts, backup): `docs/ESQUEMA_DADOS_E_STORAGE.md`.
-Shortlist de hardware em `docs/HARDWARE_SHORTLIST.md`.
-Ferramentas, documentação (Obsidian), monitorização (Slack) e IaC: `docs/PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md`.
-Explicação (para iniciantes) de onde vive cada ferramenta e do fluxo de trabalho: `docs/ARQUITETURA_E_FLUXO_DE_TRABALHO.md`.
+> Documentation is written in Portuguese. This README is the English entry point.
 
-Nota: existe uma v1 anterior (PC antigo, TrueNAS + Jellyfin + WireGuard) cuja documentacao ainda vive em `C:\Users\ruigr\codexProjects\HomeLab`, mantida apenas como referencia historica.
+## Stack
 
-## Objetivo
-- Construir um homelab para aprender, fazer deploy de projetos e expor 1-2 apps na internet de forma segura.
-- Manter custos controlados e permitir crescimento (especialmente storage/RAID).
+| Layer | Technology |
+|---|---|
+| Hypervisor | Proxmox VE (VMs + LXC containers) |
+| Firewall / routing | OPNsense (dedicated VM, 4 network zones) |
+| Network | 802.1Q VLANs, VLAN-aware Linux bridges, managed switch trunk |
+| Storage | TrueNAS SCALE, ZFS, NFS + SMB exports |
+| VPN | WireGuard |
+| Services | Nextcloud, Jellyfin, Caddy (all Docker Compose inside LXC) |
+| Backups | `rsync` to external SSD, cron-scheduled, restore validated |
+| Planned | OpenTofu, Ansible, k3s, Prometheus + Grafana, GitHub Actions CI |
 
-## Servicos
-- NAS: TrueNAS (VM) com ZFS (sem mirror por agora; RAID mais tarde).
-- VPN: WireGuard (administracao remota, acesso a zona Trusted).
-- Reverse proxy: Caddy (TLS automatico) - por agora so HTTPS interno via WireGuard; ganha exposicao publica quando houver uma app decidida (ver Pendencias).
-- Cloud: Nextcloud (so via WireGuard, sem exposicao publica).
-- Media server: Jellyfin (so via WireGuard).
+Hardware: Dell OptiPlex 3060 Micro (i5-8500T, 16GB RAM), 1TB HDD, 1TB external SSD for backups, TP-Link TL-SG608E managed switch.
 
-## Arquitetura
-- Router atual + DDNS; o port-forward aponta para uma VM de firewall dedicada, que media o trafego entre zonas de rede (VLANs) - detalhe completo em `docs/ESQUEMA_LOGICO_REDE.md`.
-- Proxmox VE no SSD (240GB) como base de VMs/LXCs. Os servicos de aplicacao correm hoje em LXCs com Docker Compose; a migracao para um cluster k3s esta planeada para a Fase 4.
-- TrueNAS numa VM com disco(s) dedicados; dados em datasets e partilhas SMB/NFS.
-- SSD externo 1TB usado como backup (nao faz parte do RAID).
+## Network architecture
 
-## Storage (decisao)
-- Vamos seguir com backups (nao RAID) para minimizar custos no inicio.
+Traffic between zones is mediated by a dedicated OPNsense VM. The home network reaches the internet directly, without crossing the firewall; only the homelab VLANs go through it.
 
-## Estado Atual (06/08/2026)
-- Existiu uma v1 do homelab (PC antigo, atualmente desligado) com TrueNAS + Jellyfin + WireGuard funcionais. Esta v2 substitui essa maquina.
-- Host v2: Dell OptiPlex 3060 Micro (i5-8500T, 16GB, SSD 256GB), 229 EUR. **Upgrade para 32GB ainda por fazer.**
-- **Fase 1 (servicos base) concluida**: Proxmox VE, TrueNAS (VM 102), WireGuard (LXC 103), Caddy (LXC 101), Nextcloud (LXC 104), Jellyfin (LXC 105) - todos a correr. Backup automatizado para SSD externo, com restore testado e validado.
-- **Fase 2 (VLANs + firewall) em curso**: VLANs 10/20/30 criadas no switch e no Proxmox, VM de firewall dedicada a correr (OPNsense, VM 106). WireGuard ja migrado para a DMZ e o proprio Proxmox ja tem interface na zona Management. **Falta migrar** TrueNAS, Caddy, Nextcloud e Jellyfin para a zona Trusted - continuam na rede plana.
-- Fases 3 a 6 (RAID, IaC/k3s, monitorizacao, Obsidian): por comecar.
+```mermaid
+flowchart TB
+    INT(("Internet")):::neut
+    ROUTER["Home router<br/>DDNS · port-forward"]:::neut
+    INT --> ROUTER
+    ROUTER -- "dedicated WAN leg" --> FWWAN
 
-Estado detalhado, tarefa a tarefa: `docs/CHECKLIST.md`. Criterios e opcoes de hardware consideradas (incluindo as alternativas nao escolhidas e estimativas de custo do RAID futuro): `docs/HARDWARE_SHORTLIST.md` e `docs/PROJECT_CONTEXT.md`.
+    subgraph FW["OPNsense firewall VM"]
+        direction LR
+        FWWAN["WAN"]:::fw
+        FWDMZ["DMZ"]:::fw
+        FWTRU["Trusted"]:::fw
+        FWMGM["Mgmt"]:::fw
+    end
 
-## Proximos Passos
-Checklist completo, com estado (feito/pendente) de todas as fases: `docs/CHECKLIST.md`.
+    FWDMZ -- "VLAN 10" --> WG
+    FWTRU -- "VLAN 20" --> TN
+    FWMGM -- "VLAN 30" --> PVE
+
+    subgraph DMZ["DMZ zone"]
+        WG["WireGuard"]:::dmz
+    end
+
+    subgraph TRUSTED["Trusted zone"]
+        TN["TrueNAS"]:::tru
+        CADDY["Caddy"]:::tru
+        NC["Nextcloud"]:::tru
+        JF["Jellyfin"]:::tru
+    end
+
+    subgraph MGMT["Management zone"]
+        PVE["Proxmox VE"]:::mgmt
+    end
+
+    WG -. "authenticated tunnel" .-> TN
+    WG -.-> PVE
+
+    classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
+    classDef fw fill:#5470AD,stroke:#3C568C,color:#F5F7FA
+    classDef dmz fill:#C98A2E,stroke:#9C6B1F,color:#2A1B04
+    classDef tru fill:#3E9678,stroke:#2C7259,color:#F5F7FA
+    classDef mgmt fill:#7B63B8,stroke:#5E4A93,color:#F5F7FA
+```
+
+| Zone | VLAN | Subnet | Contents |
+|---|---|---|---|
+| DMZ | 10 | `10.10.10.0/24` | WireGuard, the only service reachable from the internet |
+| Trusted | 20 | `10.10.20.0/24` | TrueNAS, Caddy, Nextcloud, Jellyfin |
+| Management | 30 | `10.10.30.0/24` | Proxmox web UI and API, switch management |
+| VPN tunnel | - | `10.10.40.0/24` | Virtual subnet, assigned to authenticated clients |
+
+**Note on the diagram above**: it shows the target state. The segmentation is built and working, but only WireGuard and the Proxmox management interface have been migrated so far. The remaining services are still on the flat network. The [network document](docs/ESQUEMA_LOGICO_REDE.md) tracks current state and target state as separate diagrams, deliberately, so the documentation never claims more than what exists.
+
+## Current status
+
+| Phase | State |
+|---|---|
+| 0. Hardware | Done, except a pending RAM upgrade to 32GB |
+| 1. Base services | **Done** and validated (TrueNAS, WireGuard, Caddy, Nextcloud, Jellyfin, backups) |
+| 2. VLANs and firewall | **In progress** (network built, service migration pending) |
+| 3. Storage / RAID | Not started |
+| 4. IaC and Kubernetes | Not started |
+| 5. Monitoring and alerting | Not started |
+| 6. Documentation tooling | Not started |
+
+Full task-level breakdown in [CHECKLIST.md](docs/CHECKLIST.md).
+
+## What this project demonstrates
+
+**Network segmentation that actually exists.** Most homelabs are a flat network with containers on it. This one has 802.1Q VLANs trunked over a single physical link, a VLAN-aware bridge on the hypervisor, and a dedicated firewall VM with a default-deny policy between four zones.
+
+**Backups that were restored, not just taken.** The restore was validated at three levels: structural comparison of file listings, checksum verification, and playing back an actual restored video file. A backup nobody has restored is a hypothesis.
+
+**Failure analysis written down.** Every incident has a post-mortem covering the symptom, the diagnosis path, the root cause and the fix. Some of them document my own wrong turns, because the wrong turn is usually the useful part.
+
+**Honest state tracking.** Documents separate what is built from what is planned. When a diagram described the intended architecture as if it were reality, that was treated as a defect and fixed.
+
+## Selected engineering write-ups
+
+These are the parts worth reading if you want to see how problems were approached, not just what was installed.
+
+**[VPN completely unreachable after the VLAN migration](docs/CHECKLIST.md#histórico)** - symptom was a WireGuard client reporting a connection with zero bytes received. Diagnosis eliminated layers from the inside out: inter-zone firewall rules, then the container's own iptables (packet counters stayed at zero through a real VPN reconnect, proving handshake packets never even reached the DMZ), then the NAT rule, then DNS. Root cause was a port-forward rule on the home router still pointing at the service's pre-migration IP. The lesson recorded was about verifying persisted configuration rather than trusting an earlier edit.
+
+**[NFS permissions through two layers of UID translation](docs/CHECKLIST.md#histórico)** - Nextcloud failed with `chown: Operation not permitted` against an NFS export. The cause was that "root" inside an unprivileged LXC running Docker never arrives at the NFS server as real UID 0, so `Maproot` does not apply and `Mapall` is required. The finding was applied preemptively to the next service, which worked first time.
+
+**[Backup silently aborting on exFAT](docs/CHECKLIST.md#histórico)** - `rsync -a` failed the entire transfer because exFAT cannot store Unix ownership, and `-a` always tries to preserve it. Resolved with explicit flags matched to the filesystem's actual capabilities.
+
+**[DHCP leases expiring without renewal](docs/CHECKLIST.md#histórico)** - containers lost IPv4 connectivity after hours of uptime. Two rounds of fixes treated the symptom before the actual cause was identified, leading to a project-wide move to static addressing.
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [CHECKLIST.md](docs/CHECKLIST.md) | Task-level status per phase, plus the full incident log |
+| [ESQUEMA_LOGICO_REDE.md](docs/ESQUEMA_LOGICO_REDE.md) | Network reference: current vs target state, physical topology, firewall rule matrix, end-to-end packet paths |
+| [ESQUEMA_DADOS_E_STORAGE.md](docs/ESQUEMA_DADOS_E_STORAGE.md) | Storage chain from physical disk to container, boot-order dependencies, backup design |
+| [PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) | Decision log with rationale, including reversed decisions |
+| [PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md](docs/PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md) | Tooling decisions: IaC, monitoring, documentation |
+| [ARQUITETURA_E_FLUXO_DE_TRABALHO.md](docs/ARQUITETURA_E_FLUXO_DE_TRABALHO.md) | Where each tool runs and how the workflow fits together |
+| [HARDWARE_SHORTLIST.md](docs/HARDWARE_SHORTLIST.md) | Hardware criteria and options considered |
+
+## A note on secrets
+
+Credentials, keys and access details live in `docs/SEGREDOS.md`, which is gitignored and has never been committed. [SEGREDOS.example.md](docs/SEGREDOS.example.md) is the versioned template with the structure and no real values.
+
+Hostnames, public addresses and personal identifiers have been redacted from the public documentation. Internal RFC 1918 addresses are kept because they carry no risk on their own and removing them would make the network documentation unreadable.
