@@ -17,37 +17,30 @@ Nota: existe uma v1 anterior (PC antigo, TrueNAS + Jellyfin + WireGuard) cuja do
 - Construir um homelab para aprender, fazer deploy de projetos e expor 1-2 apps na internet de forma segura.
 - Manter custos controlados e permitir crescimento (especialmente storage/RAID).
 
-## Servicos (Fase 1)
+## Servicos
 - NAS: TrueNAS (VM) com ZFS (sem mirror por agora; RAID mais tarde).
 - VPN: WireGuard (administracao remota, acesso a zona Trusted).
 - Reverse proxy: Caddy (TLS automatico) - por agora so HTTPS interno via WireGuard; ganha exposicao publica quando houver uma app decidida (ver Pendencias).
 - Cloud: Nextcloud (so via WireGuard, sem exposicao publica).
 - Media server: Jellyfin (so via WireGuard).
 
-## Arquitetura (Fase 1)
+## Arquitetura
 - Router atual + DDNS; o port-forward aponta para uma VM de firewall dedicada, que media o trafego entre zonas de rede (VLANs) - detalhe completo em `docs/ESQUEMA_LOGICO_REDE.md`.
-- Proxmox VE no SSD (240GB) como base de VMs/LXCs, e de um cluster k3s para os servicos de aplicacao.
+- Proxmox VE no SSD (240GB) como base de VMs/LXCs. Os servicos de aplicacao correm hoje em LXCs com Docker Compose; a migracao para um cluster k3s esta planeada para a Fase 4.
 - TrueNAS numa VM com disco(s) dedicados; dados em datasets e partilhas SMB/NFS.
 - SSD externo 1TB usado como backup (nao faz parte do RAID).
 
 ## Storage (decisao)
 - Vamos seguir com backups (nao RAID) para minimizar custos no inicio.
 
-## Estado Atual
-- Existiu uma v1 do homelab (PC antigo) com TrueNAS + Jellyfin + WireGuard funcionais. Esta v2 substitui essa maquina.
-- Host v2: Dell OptiPlex 3060 Micro (i5-8500T, 16GB, SSD 256GB), 229 EUR.
-- Instalado no v2 ate agora: **apenas Proxmox VE**.
-- Pendente no v2: TrueNAS (VM), Jellyfin, WireGuard, Nextcloud, Caddy.
+## Estado Atual (06/08/2026)
+- Existiu uma v1 do homelab (PC antigo, atualmente desligado) com TrueNAS + Jellyfin + WireGuard funcionais. Esta v2 substitui essa maquina.
+- Host v2: Dell OptiPlex 3060 Micro (i5-8500T, 16GB, SSD 256GB), 229 EUR. **Upgrade para 32GB ainda por fazer.**
+- **Fase 1 (servicos base) concluida**: Proxmox VE, TrueNAS (VM 102), WireGuard (LXC 103), Caddy (LXC 101), Nextcloud (LXC 104), Jellyfin (LXC 105) - todos a correr. Backup automatizado para SSD externo, com restore testado e validado.
+- **Fase 2 (VLANs + firewall) em curso**: VLANs 10/20/30 criadas no switch e no Proxmox, VM de firewall dedicada a correr (OPNsense, VM 106). WireGuard ja migrado para a DMZ e o proprio Proxmox ja tem interface na zona Management. **Falta migrar** TrueNAS, Caddy, Nextcloud e Jellyfin para a zona Trusted - continuam na rede plana.
+- Fases 3 a 6 (RAID, IaC/k3s, monitorizacao, Obsidian): por comecar.
 
-## Custos (resumo)
-- Fase 1 (sem discos novos): host refurbished i7/32GB tipicamente ~340 a ~420 EUR (depende de stock/loja).
-- Fase 2 (quando houver RAID): comprar 2x HDD NAS iguais (ex.: 4TB ou 6TB) e montar ZFS mirror.
-- Nota: confirmar precos no momento da compra.
-
-## Hardware (criterios e shortlist)
-- Preferencia: torre/MT com 2+ baias 3.5", varias portas SATA, suporte VT-x/VT-d, baixo ruido.
-- Exemplo refurb (bom custo/beneficio): Lenovo ThinkCentre M720T (i7-8700, 32GB, NVMe 500GB), ~339,85 EUR (19/02/2026).
-- Alternativa refurb: HP EliteDesk 800 G4 (i7-8700, 32GB, SSD 512GB), ~419,00 EUR (19/02/2026).
+Estado detalhado, tarefa a tarefa: `docs/CHECKLIST.md`. Criterios e opcoes de hardware consideradas (incluindo as alternativas nao escolhidas e estimativas de custo do RAID futuro): `docs/HARDWARE_SHORTLIST.md` e `docs/PROJECT_CONTEXT.md`.
 
 ## Proximos Passos
 Checklist completo, com estado (feito/pendente) de todas as fases: `docs/CHECKLIST.md`.
