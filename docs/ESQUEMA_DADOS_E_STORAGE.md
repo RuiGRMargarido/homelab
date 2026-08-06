@@ -30,9 +30,9 @@ flowchart TB
         MS["/mnt/pve/shares-nfs"]:::mount
     end
 
-    DSN -- "NFS · Mapall" --> MN
-    DSM -- "NFS · Mapall" --> MM
-    DSS -- "NFS · Mapall" --> MS
+    DSN -- "NFS :2049 · Mapall" --> MN
+    DSM -- "NFS :2049 · Mapall" --> MM
+    DSS -- "NFS :2049 · Mapall" --> MS
 
     subgraph L104["LXC 104 · Nextcloud"]
         NCD["/mnt/nextcloud-data"]:::lxc
@@ -54,8 +54,8 @@ flowchart TB
     MS -- "rsync · 4h" --> SSD
 
     SMB["PC Windows<br/>SMB"]:::neut
-    DSS -. "SMB" .-> SMB
-    DSM -. "SMB" .-> SMB
+    DSS -. "SMB :445" .-> SMB
+    DSM -. "SMB :445" .-> SMB
 
     classDef disco fill:#8A93A3,stroke:#5B6472,color:#12161C
     classDef pool fill:#3E9678,stroke:#2C7259,color:#F5F7FA
@@ -106,6 +106,18 @@ Três lacunas que a tabela torna visíveis, por ordem de gravidade:
 - **A base de dados do Nextcloud não tem backup.** Os *ficheiros* estão salvaguardados, mas a base de dados que sabe a quem pertencem, que partilhas existem e que metadados têm, não está. Um restore hoje devolveria ficheiros sem o Nextcloud à volta deles.
 - **A configuração do OPNsense não tem backup.** Já está registado como risco no `PROJECT_CONTEXT.md` e como tarefa por fazer no `CHECKLIST.md`, mas vale a pena repetir: perder isto é perder toda a política de rede, não um serviço.
 - **A biblioteca de media não tem backup**, o que provavelmente é uma decisão consciente (é grande e recuperável), mas nunca foi registada como tal. Vale a pena confirmar que é mesmo intencional.
+
+## Protocolos e portas usados nesta cadeia
+
+| Ligação | Protocolo | Porta |
+|---|---|---|
+| Host Proxmox → TrueNAS (mounts NFS) | NFS | 2049/TCP, mais 111/TCP-UDP (rpcbind) e portas dinâmicas de `mountd`/`statd`/`lockd` |
+| PC Windows → TrueNAS (partilhas) | SMB | 445/TCP |
+| Bind mount host → LXC | *(nenhum)* | Não passa pela rede, é o kernel a expor a mesma pasta |
+| Volume Docker LXC → container | *(nenhum)* | Também local, sem rede |
+| Backup para o SSD | *(nenhum)* | `rsync` local, disco ligado por USB ao host |
+
+Só os dois primeiros atravessam a rede, e são por isso os únicos que precisam de regra de firewall quando o TrueNAS for para a zona Trusted. Os restantes são locais ao host e continuam a funcionar independentemente do que a firewall fizer.
 
 ## Dependências de arranque
 

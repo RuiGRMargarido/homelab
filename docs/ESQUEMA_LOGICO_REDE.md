@@ -82,22 +82,46 @@ flowchart TB
 
 ## Inventário: onde está cada componente hoje
 
-| Componente | ID | Zona atual | IP | Zona alvo |
+| Componente | ID | Zona atual | Endereço de acesso | Zona alvo |
 |---|---|---|---|---|
-| Router de casa | - | *(gateway)* | 192.168.1.1 | *(mantém-se)* |
-| Switch TL-SG608E | - | Rede plana | 192.168.1.88 | Management |
-| OPNsense - WAN | VM 106 | Rede plana | 192.168.1.95 | *(mantém-se)* |
-| OPNsense - DMZ | VM 106 | DMZ | 10.10.10.1 | *(mantém-se)* |
-| OPNsense - Trusted | VM 106 | Trusted | 10.10.20.1 | *(mantém-se)* |
-| OPNsense - Management | VM 106 | Management | 10.10.30.1 | *(mantém-se)* |
-| Proxmox VE (host) | - | Rede plana **e** Management | 192.168.1.206 + 10.10.30.2 | Management (mantendo o IP antigo como via de recurso) |
-| WireGuard | LXC 103 | **DMZ** | 10.10.10.10 | *(já migrado)* |
-| TrueNAS | VM 102 | Rede plana | 192.168.1.66 | Trusted |
-| Caddy | LXC 101 | Rede plana | 192.168.1.83 | Trusted |
-| Nextcloud | LXC 104 | Rede plana | 192.168.1.84 | Trusted |
-| Jellyfin | LXC 105 | Rede plana | 192.168.1.87 | Trusted |
-| mnt-mate (dev) | VM 100 | Rede plana | 192.168.1.212 | *(por decidir - ver `CHECKLIST.md` §Decisões em aberto)* |
-| Clientes VPN | - | Túnel | 10.10.40.2 (telemóvel), 10.10.40.3 (PC) | *(mantém-se)* |
+| Router de casa | - | *(gateway)* | `http://192.168.1.1` | *(mantém-se)* |
+| Switch TL-SG608E | - | Rede plana | `http://192.168.1.88` | Management |
+| OPNsense - WAN | VM 106 | Rede plana | `192.168.1.95` *(sem GUI exposta aqui)* | *(mantém-se)* |
+| OPNsense - DMZ | VM 106 | DMZ | `https://10.10.10.1` | *(mantém-se)* |
+| OPNsense - Trusted | VM 106 | Trusted | `https://10.10.20.1` | *(mantém-se)* |
+| OPNsense - Management | VM 106 | Management | `https://10.10.30.1` | *(mantém-se)* |
+| Proxmox VE (host) | - | Rede plana **e** Management | `https://192.168.1.206:8006` e `https://10.10.30.2:8006` | Management (mantendo o IP antigo como via de recurso) |
+| WireGuard | LXC 103 | **DMZ** | `10.10.10.10:51820/UDP` | *(já migrado)* |
+| TrueNAS | VM 102 | Rede plana | `https://192.168.1.66` | Trusted |
+| Caddy | LXC 101 | Rede plana | `192.168.1.83:80` e `:443` | Trusted |
+| Nextcloud | LXC 104 | Rede plana | `http://192.168.1.84:8080` | Trusted |
+| Jellyfin | LXC 105 | Rede plana | `http://192.168.1.87:8096` | Trusted |
+| mnt-mate (dev) | VM 100 | Rede plana | `192.168.1.212:22` (SSH) | *(por decidir - ver `CHECKLIST.md` §Decisões em aberto)* |
+| Clientes VPN | - | Túnel | `10.10.40.2` (telemóvel), `10.10.40.3` (PC) | *(mantém-se)* |
+
+### Portas por serviço
+
+Referência para escrever as regras de firewall restritas que ainda faltam (ver "Regras ainda por escrever"). Só portas que o serviço escuta **na rede**; portas internas de containers que nunca saem do host Docker não contam.
+
+| Serviço | Porta | Protocolo | Para quê |
+|---|---|---|---|
+| Proxmox VE | 8006 | TCP | Interface web e API |
+| Proxmox VE | 22 | TCP | SSH |
+| OPNsense | 443 | TCP | Interface web |
+| WireGuard | 51820 | UDP | Túnel VPN (única porta aberta à internet) |
+| TrueNAS | 443 | TCP | Interface web |
+| TrueNAS | 445 | TCP | Partilhas SMB |
+| TrueNAS | 2049 | TCP | NFS *(ver nota abaixo)* |
+| TrueNAS | 111 | TCP/UDP | rpcbind, necessário ao NFS |
+| Nextcloud | 8080 | TCP | Interface web |
+| Jellyfin | 8096 | TCP | Interface web |
+| Jellyfin | 1900, 7359 | UDP | Deteção automática na rede local *(opcional)* |
+| Caddy | 80, 443 | TCP | HTTP e HTTPS |
+| Switch | 80 | TCP | Interface web de gestão |
+
+**Não expostas na rede** (só dentro do Docker do respetivo LXC, não precisam de regra de firewall): MariaDB 3306 e Redis 6379 do Nextcloud.
+
+**Cuidado com o NFS ao restringir portas**: além do 2049 e do 111, o NFS usa serviços auxiliares (`mountd`, `statd`, `lockd`) que por omissão escolhem portas dinâmicas a cada arranque. Uma regra que permita só 2049 vai funcionar às vezes e falhar noutras, de forma difícil de diagnosticar. Antes de restringir, é preciso fixar essas portas no TrueNAS e depois permiti-las explicitamente. Enquanto isso não estiver feito, é mais seguro manter a regra larga para o tráfego NFS do que criar uma restrição que parte de forma intermitente.
 
 ## Diagrama 2: estado alvo (quando a Fase 2 fechar)
 
@@ -294,7 +318,7 @@ Duas leituras incómodas que a matriz torna óbvias:
 
 ### Regras ainda por escrever (alvo)
 
-- **DMZ → Trusted deve ser restringida a portas específicas.** Hoje a regra 1 permite qualquer porta; o alvo é só o que os serviços em DMZ precisam mesmo de contactar.
+- **DMZ → Trusted deve ser restringida a portas específicas.** Hoje a regra 1 permite qualquer porta; o alvo é só o que os serviços em DMZ precisam mesmo de contactar. A lista está em "Portas por serviço" acima, mas atenção ao aviso sobre o NFS: restringir sem primeiro fixar as portas auxiliares dá origem a falhas intermitentes.
 - **WAN-side → Management**, permitido só a partir do IP do PC do Rui (OpenTofu/Ansible → API do Proxmox). Só passa a fazer sentido na Fase 4, quando existir IaC.
 - **Regras para a Trusted**, quando lá viver alguma coisa - hoje a zona está vazia, por isso não há nada a permitir nem a negar.
 - **Confirmar a saída da DMZ para a internet.** Não existe regra explícita `DMZ → WAN`. O túnel WireGuard funciona à mesma (as respostas saem por *state tracking* da ligação de entrada), mas um `apt update` de dentro do LXC 103 deve estar bloqueado. A confirmar quando for preciso atualizar esse container.
@@ -314,15 +338,15 @@ sequenceDiagram
     participant R as Router<br/>192.168.1.1
     participant F as OPNsense<br/>WAN .95
     participant W as WireGuard<br/>10.10.10.10
-    participant J as Jellyfin<br/>192.168.1.87
+    participant J as Jellyfin<br/>192.168.1.87:8096
 
     C->>D: 1. resolve HOSTNAME.ddns.net
     D-->>C: IP público de casa
     C->>R: 2. UDP 51820 para o IP público
-    R->>F: 3. Port Mapping para 192.168.1.95
+    R->>F: 3. Port Mapping para 192.168.1.95:51820
     F->>W: 4. DNAT para 10.10.10.10:51820
     W-->>C: 5. handshake WireGuard
-    C->>W: 6. pedido HTTP pelo túnel
+    C->>W: 6. GET :8096 pelo túnel
     W->>J: 7. MASQUERADE, sai como 10.10.10.10
     J-->>C: 8. resposta pelo mesmo caminho
 ```
