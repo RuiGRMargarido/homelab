@@ -1,6 +1,6 @@
 # Plano: Ferramentas, Documentação e Boas Práticas (Homelab v2)
 
-Documento de decisão. Cobre: skills/plugins do Claude Code a adotar, gestão de documentação via Obsidian, monitorização com alertas no Slack, e adoção de Infrastructure as Code (IaC). Criado em 18/07/2026, com base em pesquisa e decisões tomadas nesta sessão. Atualizado em 22/07/2026 para alinhar o plano com a stack prioritária de `career-profile/goals/estrategia-software.md` (Nicho B - DevOps/Platform Engineer).
+Documento de decisão. Cobre: skills/plugins do Claude Code a adotar, gestão de documentação via Obsidian, monitorização com alertas no Slack, e adoção de Infrastructure as Code (IaC). Criado em 18/07/2026, com base em pesquisa e decisões tomadas nesta sessão. Revisto em 22/07/2026 para dar prioridade às práticas mais representativas de infraestrutura moderna (Kubernetes, observabilidade, CI aplicado a IaC).
 
 ## 0. Decisões desta sessão
 - **Obsidian**: o Rui já usa Obsidian (testou noutro projeto). Quer manter grátis - sem Obsidian Sync pago. Sincronização via Git.
@@ -9,7 +9,7 @@ Documento de decisão. Cobre: skills/plugins do Claude Code a adotar, gestão de
 - **Kubernetes**: os serviços de aplicação (Jellyfin, Nextcloud, monitorização) passam a correr num cluster **k3s**, não em LXCs/VMs isolados por serviço - ver secção 4.
 - **CI**: validação automática do IaC via GitHub Actions antes de qualquer `apply` - ver secção 4.
 
-**Motivo destas 3 mudanças (22/07/2026):** comparação com `career-profile/goals/estrategia-software.md` mostrou que Kubernetes é o skill 🔴 mais crítico do Nicho B ("sem isto não há sénior") e não estava previsto; Prometheus/Grafana estava planeado como "não urgente" apesar de ser skill 🟡 pedida na maioria das ofertas; e a disciplina de CI/CD já é um skill dominado (GitHub Actions) que vale a pena mostrar aplicado a IaC real.
+**Motivo destas 3 mudanças (22/07/2026):** o plano original resolvia o homelab mas evitava as três práticas que mais distinguem infraestrutura moderna de "umas VMs com serviços". Kubernetes não estava previsto de todo, apesar de ser o modelo dominante para correr aplicações; Prometheus/Grafana estava adiado como "não urgente", quando observabilidade é precisamente o que permite perceber o que está a acontecer antes de partir; e havia experiência de CI (GitHub Actions) que não estava a ser aplicada à infraestrutura, onde um erro custa bem mais caro do que num build.
 
 ## 1. Claude Code - skills e plugins a adotar
 
@@ -49,7 +49,7 @@ Três níveis complementares, todos self-hosted no próprio homelab, todos a ale
 
 1. **Uptime Kuma** - monitorização "está no ar?" em tempo real (HTTP/TCP/ping/Docker/SSL) para cada serviço (TrueNAS, Jellyfin, WireGuard, router...). Suporta Slack nativamente (um dos 90+ canais de notificação). É o standard de facto para homelabs.
 2. **Healthchecks.io (self-hosted)** - "dead man's switch" para jobs agendados (backups, scrub do ZFS, runs do Ansible). Um script termina com um `curl` a um URL único; se o ping falhar/não chegar a horas, alerta. Isto apanha falhas silenciosas que o Uptime Kuma não vê (ex.: "o backup parou de correr há 3 semanas mas o servidor está no ar").
-3. **Prometheus + Grafana** - antecipado para a fase inicial (deixou de ser "mais tarde, não urgente"). Justificação: é um skill explicitamente pedido no Nicho B da estratégia de carreira ("pedido em todas as ofertas"), e correr dentro do cluster k3s (secção 4) via `kube-prometheus-stack` (Helm chart) é praticamente imediato - node/cAdvisor exporters + dashboards prontos, sem trabalho de configuração manual significativo. Dá gráficos de CPU/RAM/disco/rede por VM e por pod, e é a base de qualquer conversa de entrevista sobre observabilidade.
+3. **Prometheus + Grafana** - antecipado para a fase inicial (deixou de ser "mais tarde, não urgente"). Justificação: os dois níveis acima respondem a "está no ar?", mas não a "porque é que está lento" nem "isto vem a degradar-se há semanas". Num host com RAM já em sobrecompromisso (ver `PROJECT_CONTEXT.md` §Riscos), saber a tendência de consumo vale mais do que um alerta binário. Correr dentro do cluster k3s (secção 4) via `kube-prometheus-stack` (Helm chart) é praticamente imediato - node/cAdvisor exporters + dashboards prontos, sem trabalho de configuração manual significativo, e dá gráficos de CPU/RAM/disco/rede por VM e por pod.
 
 Complemento opcional via Claude: uma tarefa agendada (skill `schedule`) que corre, por ex., uma vez por dia, consulta a API do Uptime Kuma + as pendências do `PROJECT_CONTEXT.md`, e posta um resumo em linguagem natural no mesmo canal Slack. Isto é um "relatório", não o alerta crítico - o alerta em si (passo 1 e 2) tem de continuar a não depender de nenhuma sessão de LLM a correr.
 
@@ -73,7 +73,7 @@ Em vez de um LXC/VM Ansible por serviço (`jellyfin`, `nextcloud`, `monitoring`.
 
 - **Provisionamento**: OpenTofu cria as VMs base (ex.: 1–3 nós k3s); Ansible instala o k3s nelas (role `k3s-server`/`k3s-agent`, ou o role comunitário `k3s-io/k3s-ansible`).
 - **Serviços**: cada serviço (Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana) passa a ser um manifest/Helm chart em `infra/kubernetes/`, aplicado com `kubectl apply` ou `helm install` - não mais um role Ansible próprio por serviço.
-- **Porquê agora e não mais tarde**: é o skill 🔴 mais crítico da estratégia de carreira (Nicho B) e o homelab é o local ideal para o praticar sem risco - errar aqui não tem custo de produção. Adiar isto significa adiar o maior diferenciador de CV que este projeto pode dar.
+- **Porquê agora e não mais tarde**: adotar Kubernetes depois de ter cinco serviços a correr em LXCs à mão significa migrá-los todos, e cada migração é uma oportunidade de partir algo que funcionava. Entrar cedo, enquanto o custo de refazer ainda é baixo, é mais barato do que entrar tarde. O homelab é também o sítio certo para errar: uma configuração má aqui não tem custo de produção.
 
 Estrutura proposta no repo:
 ```
@@ -104,7 +104,7 @@ Antes de qualquer `apply` real, um workflow de GitHub Actions corre em cada PR/p
 - `ansible-lint` sobre os playbooks/roles.
 - `kubeval`/`kubeconform` ou `helm lint` sobre os manifests em `infra/kubernetes/`.
 
-Isto não substitui `code-review`/`security-review` (continuam obrigatórios antes de aplicar), mas apanha erros mecânicos (sintaxe, formatação, más práticas óbvias) automaticamente e sem custo - e é uma prova de CI/CD aplicado a infraestrutura real, que é exatamente o que a estratégia de carreira pede para o Nicho B ("CI/CD (GitHub Actions, GitLab CI, Jenkins)").
+Isto não substitui `code-review`/`security-review` (continuam obrigatórios antes de aplicar), mas apanha erros mecânicos (sintaxe, formatação, más práticas óbvias) automaticamente e sem custo. A diferença face a CI sobre código de aplicação é o custo do erro: um `tofu apply` mal formado não falha um teste, destrói uma VM.
 
 **Primeira tarefa de IaC** (dado o estado atual - só Proxmox instalado): provisionar a VM TrueNAS via OpenTofu, depois provisionar 1 VM e instalar k3s nela via Ansible (cluster de nó único para começar) - codificando o que já estava planeado manualmente na Fase 1, mas já com Kubernetes como destino dos serviços.
 

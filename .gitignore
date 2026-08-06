@@ -8,3 +8,13 @@ infra/secrets/
 *.tfvars
 *vault.yml
 *values-secret.yaml
+
+# Configuracao especifica do IDE (JetBrains) - nao pertence ao repo
+.idea/
+
+# Plugins do Obsidian - codigo de terceiros, reinstalavel pela propria app
+.obsidian/plugins/
+
+# Worktrees e estado local do Claude Code
+.claude/
+imagens/
