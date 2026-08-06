@@ -25,49 +25,7 @@ Hardware: Dell OptiPlex 3060 Micro (i5-8500T, 16GB RAM), 1TB HDD, 1TB external S
 
 Traffic between zones is mediated by a dedicated OPNsense VM. The home network reaches the internet directly, without crossing the firewall; only the homelab VLANs go through it.
 
-```mermaid
-flowchart TB
-    INT(("Internet")):::neut
-    ROUTER["Home router<br/>DDNS · port-forward"]:::neut
-    INT --> ROUTER
-    ROUTER -- "dedicated WAN leg" --> FWWAN
-
-    subgraph FW["OPNsense firewall VM"]
-        direction LR
-        FWWAN["WAN"]:::fw
-        FWDMZ["DMZ"]:::fw
-        FWTRU["Trusted"]:::fw
-        FWMGM["Mgmt"]:::fw
-    end
-
-    FWDMZ -- "VLAN 10" --> WG
-    FWTRU -- "VLAN 20" --> TN
-    FWMGM -- "VLAN 30" --> PVE
-
-    subgraph DMZ["DMZ zone"]
-        WG["WireGuard"]:::dmz
-    end
-
-    subgraph TRUSTED["Trusted zone"]
-        TN["TrueNAS"]:::tru
-        CADDY["Caddy"]:::tru
-        NC["Nextcloud"]:::tru
-        JF["Jellyfin"]:::tru
-    end
-
-    subgraph MGMT["Management zone"]
-        PVE["Proxmox VE"]:::mgmt
-    end
-
-    WG -. "authenticated tunnel" .-> TN
-    WG -.-> PVE
-
-    classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
-    classDef fw fill:#5470AD,stroke:#3C568C,color:#F5F7FA
-    classDef dmz fill:#C98A2E,stroke:#9C6B1F,color:#2A1B04
-    classDef tru fill:#3E9678,stroke:#2C7259,color:#F5F7FA
-    classDef mgmt fill:#7B63B8,stroke:#5E4A93,color:#F5F7FA
-```
+![Network architecture](docs/diagrams/rede-arquitetura.svg)
 
 | Zone | VLAN | Subnet | Contents |
 |---|---|---|---|
