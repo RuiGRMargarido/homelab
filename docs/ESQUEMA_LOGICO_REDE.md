@@ -2,7 +2,9 @@
 
 Documento de referência rápida: "como está montada a rede", para consultar a qualquer momento sem ter de procurar dentro do `PROJECT_CONTEXT.md`. As decisões, o histórico e os porquês continuam lá.
 
-**Este documento tem dois diagramas** e é importante não os confundir: o primeiro é o **estado atual** (o que está mesmo montado hoje), o segundo é o **estado alvo** (onde a Fase 2 vai chegar). Até 06/08/2026 existia só o diagrama do alvo, o que dava a impressão errada de que os serviços já estavam segmentados.
+**Há dois diagramas de zonas e é importante não os confundir**: o "estado atual" é o que está mesmo montado hoje, o "estado alvo" é onde a Fase 2 vai chegar. Até 06/08/2026 existia só o do alvo, o que dava a impressão errada de que os serviços já estavam segmentados.
+
+**Sobre os formatos**: os diagramas aparecem em dois formatos, por opção. Os que mudam a cada alteração de rede (estado atual, matriz de regras, caminhos de pacote) ficam em **Mermaid**, escrito diretamente no markdown, porque editar texto é rápido e não exige ferramentas. Os que são estáveis e servem de vitrine (estado alvo, topologia física) são **SVG desenhado à mão** em `diagrams/`, porque o Mermaid faz layout automático e não permite alinhar as interfaces da firewall por cima das zonas que servem nem pôr as zonas lado a lado. A troca é deliberada: melhor aspeto onde importa, edição mais fácil onde é preciso mexer com frequência.
 
 ## Diagrama 1: estado atual (06/08/2026)
 
@@ -125,52 +127,7 @@ Referência para escrever as regras de firewall restritas que ainda faltam (ver 
 
 ## Diagrama 2: estado alvo (quando a Fase 2 fechar)
 
-```mermaid
-flowchart TB
-    INT(("Internet")):::neut
-    ROUTER["Router de casa<br/>DDNS · port-forward"]:::neut
-    INT --> ROUTER
-    ROUTER -- "rede de casa, sem tag" --> FWWAN
-
-    subgraph FW["VM firewall dedicada · OPNsense"]
-        direction LR
-        FWWAN["WAN"]:::fw
-        FWDMZ["DMZ"]:::fw
-        FWTRU["Trusted"]:::fw
-        FWMGM["Mgmt"]:::fw
-    end
-
-    FWDMZ -- "VLAN 10" --> WG
-    FWTRU -- "VLAN 20" --> TN
-    FWMGM -- "VLAN 30" --> PVE
-
-    subgraph DMZ["Zona DMZ"]
-        WG["WireGuard server"]:::dmz
-        FUT["Caddy - app futura (pendente)"]:::dmz
-    end
-
-    subgraph TRUSTED["Zona Trusted"]
-        TN["TrueNAS"]:::tru
-        CADDY["Caddy - HTTPS interno"]:::tru
-        NC["Nextcloud"]:::tru
-        JF["Jellyfin"]:::tru
-        K3S["k3s - nós + workloads"]:::tru
-    end
-
-    subgraph MGMT["Zona Management"]
-        PVE["Proxmox VE - UI/API"]:::mgmt
-        SWG["Switch TL-SG608E"]:::mgmt
-    end
-
-    WG -. "túnel autenticado" .-> TN
-    WG -.-> PVE
-
-    classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
-    classDef fw fill:#5470AD,stroke:#3C568C,color:#F5F7FA
-    classDef dmz fill:#C98A2E,stroke:#9C6B1F,color:#2A1B04
-    classDef tru fill:#3E9678,stroke:#2C7259,color:#F5F7FA
-    classDef mgmt fill:#7B63B8,stroke:#5E4A93,color:#F5F7FA
-```
+![Arquitetura de rede, estado alvo](diagrams/rede-arquitetura-pt.svg)
 
 | Zonas |                                        |
 | ----- | -------------------------------------- |
@@ -205,34 +162,7 @@ flowchart TB
 
 O que está mesmo ligado a quê, com cabos e portas reais. Os diagramas anteriores são lógicos (zonas e VLANs); este é o que serve para saber que cabo desligar.
 
-```mermaid
-flowchart TB
-    INT(("Internet")):::neut
-    ROUTER["Router Vodafone HG8247B7-8N<br/>192.168.1.1 · DDNS · port-forward"]:::neut
-    PL{{"Rede powerline<br/>cablagem elétrica da casa"}}:::pl
-
-    INT --- ROUTER
-    ROUTER -- "cabo" --- PL
-
-    SW["Switch TL-SG608E · 8 portas<br/>192.168.1.88"]:::sw
-    PC["PC do Rui<br/>Windows"]:::pc
-
-    subgraph OPT["OptiPlex 3060 Micro · Proxmox VE"]
-        NIC0["NIC onboard<br/>bridge vmbr0 · VLAN-aware"]:::nic
-        NIC1["Adaptador USB→RJ45<br/>bridge vmbr1 · sem tags"]:::nic
-    end
-
-    PL -- "uplink VLAN 1<br/>porta por confirmar" --- SW
-    PL -- "perna WAN dedicada" --- NIC1
-    SW -- "porta 2" --- PC
-    SW -- "porta 3 · TRUNK<br/>VLAN 1 sem tag + 10/20/30 com tag" --- NIC0
-
-    classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
-    classDef pl fill:#B5651D,stroke:#8A4A15,color:#FFF8F0
-    classDef sw fill:#5470AD,stroke:#3C568C,color:#F5F7FA
-    classDef nic fill:#7B63B8,stroke:#5E4A93,color:#F5F7FA
-    classDef pc fill:#3E9678,stroke:#2C7259,color:#F5F7FA
-```
+![Topologia fisica](diagrams/topologia-fisica.svg)
 
 ### Mapa de portas do switch
 
@@ -423,5 +353,6 @@ Qual app vai para a zona DMZ, e a zona de rede da futura VM de desenvolvimento/a
 - 29/07/2026: diagrama redesenhado - cada zona passou a uma única caixa (em vez de uma caixa por serviço) para caber sem scroll horizontal; os serviços de cada zona já estão detalhados na tabela "Zonas / VLANs" abaixo. Tentativa anterior (`direction TB` dentro de cada subgraph) não resultou - o Mermaid ignora essa direção quando há ligações entre subgraphs, confirmado por teste local antes de aplicar. Legenda também reformatada em tabela compacta com marcadores de cor/linha.
 - 29/07/2026: revertido para caixas individuais por serviço - a versão colapsada, além de menos explícita, introduziu sobreposição visual (o título longo da firewall ficou espremido contra as caixas com o diagrama mais estreito). Confirmado por teste local que a versão de caixas individuais não tem esse problema, só é mais larga (pode precisar de scroll horizontal ou zoom out no Obsidian). Legenda em tabela mantém-se.
 - 02/08/2026: **clarificada a dupla função do switch** - o diagrama e o texto só mostravam o caminho Internet → Router → Firewall → zonas, dando a entender (incorretamente) que toda a rede passava pela firewall. Corrigido: a porta trunk do switch transporta também a VLAN 1 sem tag (rede doméstica normal), que chega à internet por um cabo próprio (switch → powerline → router), sem tocar na firewall - é o caminho que o PC do Rui usa, por exemplo. Só o tráfego das VLANs 10/20/30 é que passa pela firewall, via a perna WAN dedicada (adaptador USB→RJ45). Esta ambiguidade só foi detetada ao configurar fisicamente a Fase 2 (porta trunk + bridges no Proxmox), não durante o desenho original do esquema.
+- 06/08/2026: **adotados dois formatos de diagrama, por opção**. O estado alvo e a topologia física passaram de Mermaid para SVG desenhado à mão (`diagrams/`), porque o layout automático do Mermaid não permite alinhar as interfaces da firewall com as zonas que servem nem dispor as zonas lado a lado, e o resultado era alto e desalinhado. Os restantes (estado atual, matriz de regras, caminhos de pacote) ficam em Mermaid de propósito: mudam a cada alteração de rede, e aí a facilidade de editar texto vale mais do que o aspeto. O custo aceite é que mexer num SVG obriga a ajustar coordenadas à mão.
 - 06/08/2026: **adicionados diagramas de topologia física, matriz de firewall e caminhos de pacote**. A topologia física só existia em prosa; passa a ter diagrama com portas do switch e mapa de portas. Confirmado com o utilizador que o switch e o OptiPlex continuam ambos ligados por powerline (a mudança para junto do router não chegou a acontecer), o que torna a powerline ponto único de falha e o estrangulamento de largura de banda para tudo o que vai à internet. Falta confirmar em que porta do switch está o uplink da powerline.
 - 06/08/2026: **separado o estado atual do estado alvo** - o documento tinha um único diagrama, o do alvo, apresentado como se fosse a realidade. Como a Fase 2 só migrou o WireGuard e o Proxmox até agora, isso escondia o facto mais importante do momento: **a zona Trusted está criada mas vazia**, e TrueNAS/Caddy/Nextcloud/Jellyfin continuam na rede plana, sem qualquer proteção da firewall. Adicionados: diagrama do estado atual, tabela de inventário componente a componente (com zona atual e zona alvo), e a distinção entre regras de firewall realmente configuradas e as que ainda faltam escrever. A secção "Regras entre zonas" era inteiramente aspiracional e não correspondia a nada do que estava aplicado.

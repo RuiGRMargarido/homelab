@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 570" width="960" height="570" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <title>Topologia física do homelab: router, powerline, switch e as duas NICs do OptiPlex</title>
+
+  <rect width="960" height="570" fill="#121826"/>
+
+  <!-- connectors -->
+  <g stroke="#4a5568" stroke-width="1.5" fill="none">
+    <path d="M480 58 L480 86"/>
+    <path d="M480 138 L480 168"/>
+    <path d="M250 214 L250 270"/>
+    <path d="M807 214 L807 400"/>
+    <path d="M330 334 L330 370 L580 370 L580 400"/>
+    <path d="M170 334 L170 388 L115 388 L115 410"/>
+  </g>
+
+  <text x="258" y="248" font-size="11" fill="#8792a5">uplink VLAN 1</text>
+  <text x="815" y="248" font-size="11" fill="#8792a5">perna WAN dedicada</text>
+  <text x="178" y="357" font-size="11" fill="#8792a5">porta 2</text>
+  <text x="470" y="362" text-anchor="middle" font-size="10.5" fill="#8792a5">porta 3 · trunk · VLAN 1 sem tag + VLANs 10/20/30 com tag</text>
+
+  <!-- internet -->
+  <rect x="402" y="20" width="156" height="38" rx="19" fill="#5f6a7d" stroke="#78849a" stroke-width="1"/>
+  <text x="480" y="44" text-anchor="middle" font-size="15" fill="#eef2f8">Internet</text>
+
+  <!-- router -->
+  <rect x="340" y="86" width="280" height="52" rx="8" fill="#96a1b3" stroke="#aab4c4" stroke-width="1"/>
+  <text x="480" y="107" text-anchor="middle" font-size="13.5" font-weight="600" fill="#151b26">Router Vodafone HG8247B7-8N</text>
+  <text x="480" y="125" text-anchor="middle" font-size="11" fill="#2f3947">192.168.1.1 · DDNS · port-forward</text>
+
+  <!-- powerline -->
+  <rect x="140" y="168" width="680" height="46" rx="23" fill="#2a1f14" stroke="#b5651d" stroke-width="1.5" stroke-dasharray="7 4"/>
+  <text x="480" y="188" text-anchor="middle" font-size="13" font-weight="600" fill="#d98a3a">Rede powerline</text>
+  <text x="480" y="205" text-anchor="middle" font-size="10.5" fill="#9a8265">cablagem elétrica da casa · meio partilhado</text>
+
+  <!-- switch -->
+  <rect x="110" y="270" width="280" height="64" rx="8" fill="#1a2334" stroke="#3f5fa8" stroke-width="1.5"/>
+  <text x="250" y="295" text-anchor="middle" font-size="13" font-weight="600" fill="#eef2f8">Switch TL-SG608E · 8 portas</text>
+  <text x="250" y="316" text-anchor="middle" font-size="11" fill="#8792a5">192.168.1.88</text>
+
+  <!-- PC -->
+  <rect x="40" y="410" width="150" height="56" rx="8" fill="#1c2e29" stroke="#3e9678" stroke-width="1.5"/>
+  <text x="115" y="434" text-anchor="middle" font-size="12.5" font-weight="600" fill="#4fb894">PC do Rui</text>
+  <text x="115" y="452" text-anchor="middle" font-size="10.5" fill="#7d8798">Windows</text>
+
+  <!-- OptiPlex -->
+  <rect x="450" y="400" width="480" height="130" rx="10" fill="#191f2e" stroke="#7b63b8" stroke-width="1.5"/>
+  <text x="472" y="427" font-size="13.5" font-weight="600" fill="#9d86d4">OptiPlex 3060 Micro · Proxmox VE</text>
+
+  <g stroke="#4a5568" stroke-width="1.5" fill="none">
+    <path d="M580 400 L580 446"/>
+    <path d="M807 400 L807 446"/>
+  </g>
+
+  <rect x="470" y="446" width="220" height="60" rx="6" fill="#7b63b8"/>
+  <text x="580" y="470" text-anchor="middle" font-size="12.5" font-weight="600" fill="#f5f2fb">NIC onboard</text>
+  <text x="580" y="490" text-anchor="middle" font-size="10.5" fill="#e2daf5">vmbr0 · VLAN-aware</text>
+
+  <rect x="700" y="446" width="214" height="60" rx="6" fill="#7b63b8"/>
+  <text x="807" y="470" text-anchor="middle" font-size="12.5" font-weight="600" fill="#f5f2fb">Adaptador USB→RJ45</text>
+  <text x="807" y="490" text-anchor="middle" font-size="10.5" fill="#e2daf5">vmbr1 · sem tags</text>
+
+  <text x="480" y="553" text-anchor="middle" font-size="10.5" fill="#7d8798">Tudo o que vai à internet atravessa a mesma powerline: é o estrangulamento de largura de banda e um ponto único de falha.</text>
+</svg>
