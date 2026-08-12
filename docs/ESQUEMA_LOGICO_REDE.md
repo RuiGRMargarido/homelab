@@ -200,6 +200,7 @@ O OPNsense é *default-deny*: o que não estiver explicitamente permitido é blo
 | 1 | DMZ | `10.10.10.10` (WireGuard) | Rede Trusted | Pass | Deixa os clientes VPN chegar à zona Trusted |
 | 2 | DMZ | `10.10.10.10` (WireGuard) | Rede Management | Pass | Deixa os clientes VPN chegar ao Proxmox |
 | 3 | MGMT | Rede Management | Qualquer | Pass | O host Proxmox precisa de iniciar ligações a todas as zonas |
+| 4 | DMZ | `10.10.10.10` (WireGuard) | Rede WAN (`192.168.1.0/24`) | Pass | Deixa os clientes VPN chegar à rede plana, onde ainda vivem todos os serviços (ver Histórico, 11/08/2026) |
 | NAT | WAN | Qualquer | WAN `:51820/UDP` | Pass + DNAT | Encaminha o WireGuard para `10.10.10.10:51820` |
 
 Mais as regras automáticas do OPNsense, que não foram criadas à mão mas contam para o comportamento real: *anti-lockout* (TCP 80/443 para a própria firewall, por interface), bloqueio de redes privadas e *bogons* vindas da WAN, e a *default deny* final.
@@ -217,7 +218,7 @@ Só as ligações **iniciadas** contam. Respostas a ligações já estabelecidas
 |---|---|---|---|---|---|
 | **Internet** | - | *(router)* | Só UDP 51820 | Não | Não |
 | **Rede plana** | Sim *(router)* | Sim | Não | Não | Não |
-| **DMZ** (WireGuard) | *(ver nota)* | Não | - | **Tudo** | **Tudo** |
+| **DMZ** (WireGuard) | *(ver nota)* | **Tudo** | - | **Tudo** | **Tudo** |
 | **Trusted** | *(sem clientes)* | Não | Não | - | Não |
 | **Management** | Sim | Sim | **Tudo** | **Tudo** | - |
 
@@ -227,24 +228,29 @@ flowchart LR
     DMZ["DMZ<br/>WireGuard"]:::dmz
     TRU["Trusted<br/>(vazia)"]:::vazio
     MGM["Management<br/>Proxmox"]:::mgmt
+    PLA["Rede plana<br/>TrueNAS · Nextcloud<br/>Jellyfin · Caddy"]:::flat
 
     NET -- "UDP 51820 · DNAT" --> DMZ
     DMZ -- "tudo" --> TRU
     DMZ -- "tudo" --> MGM
+    DMZ -- "tudo" --> PLA
     MGM -- "tudo" --> DMZ
     MGM -- "tudo" --> TRU
+    MGM -- "tudo" --> PLA
     MGM -- "tudo" --> NET
 
     classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
     classDef dmz fill:#C98A2E,stroke:#9C6B1F,color:#2A1B04
     classDef mgmt fill:#7B63B8,stroke:#5E4A93,color:#F5F7FA
     classDef vazio fill:#4A5058,stroke:#343941,color:#C8CDD4
+    classDef flat fill:#B5651D,stroke:#8A4A15,color:#FFF8F0
 ```
 
-Duas leituras incómodas que a matriz torna óbvias:
+Três leituras incómodas que a matriz torna óbvias:
 
 - **A zona Management é hoje a mais poderosa da rede**, não a mais protegida. A regra `MGMT → any` foi criada para desbloquear o host Proxmox e acabou a dar-lhe acesso irrestrito a tudo. Faz sentido enquanto só lá vive o Proxmox, mas deixa de fazer no momento em que o switch (ou qualquer outra coisa) entrar nesta zona.
-- **A DMZ tem acesso total à Trusted e à Management.** Está restringida ao IP do WireGuard, o que a torna aceitável por agora, mas o `Tudo` devia ser uma lista curta de portas. É a diferença entre "o meu VPN funciona" e "o meu VPN só faz o que precisa".
+- **A DMZ tem acesso total à Trusted, à Management e à rede plana.** Está restringida ao IP do WireGuard, o que a torna aceitável por agora, mas o `Tudo` devia ser uma lista curta de portas. É a diferença entre "o meu VPN funciona" e "o meu VPN só faz o que precisa".
+- **As três setas que saem da DMZ existem porque os serviços estão espalhados.** Enquanto TrueNAS, Nextcloud, Jellyfin e Caddy estiverem na rede plana, o WireGuard precisa de alcançar as quatro zonas para ser útil. À medida que a migração para a Trusted avançar, a regra 4 (DMZ → rede plana) deve encolher e no fim desaparecer: é a métrica mais simples de que a segmentação está mesmo a acontecer.
 
 ### Regras ainda por escrever (alvo)
 
@@ -289,7 +295,7 @@ sequenceDiagram
 | 4 | Regra de NAT em falta ou com destino errado | Firewall → NAT → Port Forward no OPNsense |
 | 5 | Chaves trocadas, ou o pacote nem chega | `pct exec 103 -- wg show` deve mostrar *latest handshake* recente |
 | 6 | Cliente sem rota para o destino | ver `AllowedIPs` na config do cliente |
-| 7 | Falta regra de firewall para a zona de destino | Firewall → Rules → DMZ |
+| 7 | Falta regra de firewall para a zona de destino | Firewall → Rules → DMZ; foi esta a causa do incidente de 11/08/2026, em que o túnel funcionava mas não alcançava serviço nenhum |
 | 8 | Serviço de destino em baixo | testar o serviço a partir da rede local |
 
 **Nota**: o salto 7 hoje sai para a **rede plana** (`192.168.1.87`), não para a Trusted, porque o Jellyfin ainda não foi migrado. Quando for, o destino passa a `10.10.20.x` e o caminho passa mesmo a atravessar a firewall, e não a contorná-la.
@@ -353,6 +359,7 @@ Qual app vai para a zona DMZ, e a zona de rede da futura VM de desenvolvimento/a
 - 29/07/2026: diagrama redesenhado - cada zona passou a uma única caixa (em vez de uma caixa por serviço) para caber sem scroll horizontal; os serviços de cada zona já estão detalhados na tabela "Zonas / VLANs" abaixo. Tentativa anterior (`direction TB` dentro de cada subgraph) não resultou - o Mermaid ignora essa direção quando há ligações entre subgraphs, confirmado por teste local antes de aplicar. Legenda também reformatada em tabela compacta com marcadores de cor/linha.
 - 29/07/2026: revertido para caixas individuais por serviço - a versão colapsada, além de menos explícita, introduziu sobreposição visual (o título longo da firewall ficou espremido contra as caixas com o diagrama mais estreito). Confirmado por teste local que a versão de caixas individuais não tem esse problema, só é mais larga (pode precisar de scroll horizontal ou zoom out no Obsidian). Legenda em tabela mantém-se.
 - 02/08/2026: **clarificada a dupla função do switch** - o diagrama e o texto só mostravam o caminho Internet → Router → Firewall → zonas, dando a entender (incorretamente) que toda a rede passava pela firewall. Corrigido: a porta trunk do switch transporta também a VLAN 1 sem tag (rede doméstica normal), que chega à internet por um cabo próprio (switch → powerline → router), sem tocar na firewall - é o caminho que o PC do Rui usa, por exemplo. Só o tráfego das VLANs 10/20/30 é que passa pela firewall, via a perna WAN dedicada (adaptador USB→RJ45). Esta ambiguidade só foi detetada ao configurar fisicamente a Fase 2 (porta trunk + bridges no Proxmox), não durante o desenho original do esquema.
+- 11/08/2026: acrescentada a regra 4 (`WireGuard → rede plana`) à lista de regras configuradas, à matriz e ao diagrama, depois de se descobrir que a VPN não alcançava serviço nenhum desde a migração do WireGuard para a DMZ. A matriz ganhou a rede plana como destino explícito, por ser hoje onde vivem quase todos os serviços - detalhe do incidente em `CHECKLIST.md`.
 - 06/08/2026: **adotados dois formatos de diagrama, por opção**. O estado alvo e a topologia física passaram de Mermaid para SVG desenhado à mão (`diagrams/`), porque o layout automático do Mermaid não permite alinhar as interfaces da firewall com as zonas que servem nem dispor as zonas lado a lado, e o resultado era alto e desalinhado. Os restantes (estado atual, matriz de regras, caminhos de pacote) ficam em Mermaid de propósito: mudam a cada alteração de rede, e aí a facilidade de editar texto vale mais do que o aspeto. O custo aceite é que mexer num SVG obriga a ajustar coordenadas à mão.
 - 06/08/2026: **adicionados diagramas de topologia física, matriz de firewall e caminhos de pacote**. A topologia física só existia em prosa; passa a ter diagrama com portas do switch e mapa de portas. Confirmado com o utilizador que o switch e o OptiPlex continuam ambos ligados por powerline (a mudança para junto do router não chegou a acontecer), o que torna a powerline ponto único de falha e o estrangulamento de largura de banda para tudo o que vai à internet. Falta confirmar em que porta do switch está o uplink da powerline.
 - 06/08/2026: **separado o estado atual do estado alvo** - o documento tinha um único diagrama, o do alvo, apresentado como se fosse a realidade. Como a Fase 2 só migrou o WireGuard e o Proxmox até agora, isso escondia o facto mais importante do momento: **a zona Trusted está criada mas vazia**, e TrueNAS/Caddy/Nextcloud/Jellyfin continuam na rede plana, sem qualquer proteção da firewall. Adicionados: diagrama do estado atual, tabela de inventário componente a componente (com zona atual e zona alvo), e a distinção entre regras de firewall realmente configuradas e as que ainda faltam escrever. A secção "Regras entre zonas" era inteiramente aspiracional e não correspondia a nada do que estava aplicado.
