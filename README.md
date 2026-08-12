@@ -34,7 +34,7 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 | Management | 30 | `10.10.30.0/24` | Proxmox web UI and API, switch management |
 | VPN tunnel | - | `10.10.40.0/24` | Virtual subnet, assigned to authenticated clients |
 
-**Note on the diagram above**: it shows the target state. The segmentation is built and working, but only WireGuard and the Proxmox management interface have been migrated so far. The remaining services are still on the flat network. The [network document](docs/ESQUEMA_LOGICO_REDE.md) tracks current state and target state as separate diagrams, deliberately, so the documentation never claims more than what exists.
+**Note on the diagram above**: it shows the target state. The segmentation is built and working, and WireGuard, the Proxmox management interface and TrueNAS have been migrated. Caddy, Nextcloud and Jellyfin are still on the flat network. The [network document](docs/ESQUEMA_LOGICO_REDE.md) tracks current state and target state as separate diagrams, deliberately, so the documentation never claims more than what exists.
 
 ## Current status
 
@@ -42,7 +42,7 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 |---|---|
 | 0. Hardware | Done, except a pending RAM upgrade to 32GB |
 | 1. Base services | **Done** and validated (TrueNAS, WireGuard, Caddy, Nextcloud, Jellyfin, backups) |
-| 2. VLANs and firewall | **In progress** (network built, service migration pending) |
+| 2. VLANs and firewall | **In progress** (network built; WireGuard and TrueNAS migrated, three services to go) |
 | 3. Storage / RAID | Not started |
 | 4. IaC and Kubernetes | Not started |
 | 5. Monitoring and alerting | Not started |

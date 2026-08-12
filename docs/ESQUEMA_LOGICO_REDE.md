@@ -8,7 +8,9 @@ Documento de referência rápida: "como está montada a rede", para consultar a 
 
 ## Diagrama 1: estado atual (06/08/2026)
 
-A leitura mais importante deste diagrama: **a zona Trusted está vazia**. Os serviços que ela devia proteger (TrueNAS, Caddy, Nextcloud, Jellyfin) continuam todos na rede plana de casa, ao lado do PC e de qualquer outro dispositivo doméstico. A segmentação existe e funciona, mas ainda não está a proteger nada.
+A leitura mais importante deste diagrama: **a zona Trusted já protege alguma coisa**. O TrueNAS foi migrado a 11/08/2026 e é o primeiro serviço lá dentro, o que significa que os dados (todos eles) já estão do lado certo da firewall. Os que faltam (Caddy, Nextcloud, Jellyfin) continuam na rede plana, ao lado do PC e de qualquer dispositivo doméstico.
+
+Uma consequência prática que vale a pena reter: o storage passou a atravessar a firewall. Os mounts NFS do host saem da zona Management e entram na Trusted (`clientaddr=10.10.30.2`, `addr=10.10.20.10`), em vez de ficarem os dois na mesma rede plana. É a primeira vez que tráfego de dados a sério passa pela segmentação.
 
 ```mermaid
 flowchart TB
@@ -22,7 +24,6 @@ flowchart TB
 
     subgraph FLAT["Rede plana · VLAN 1 · ainda por segmentar"]
         PVEA["Proxmox · IP antigo"]:::flat
-        TN["TrueNAS"]:::flat
         CADDY["Caddy"]:::flat
         NC["Nextcloud"]:::flat
         JF["Jellyfin"]:::flat
@@ -41,7 +42,7 @@ flowchart TB
     end
 
     FWDMZ -- "VLAN 10" --> WG
-    FWTRU -. "VLAN 20 · sem clientes" .-> VAZIA
+    FWTRU -- "VLAN 20" --> TN
     FWMGM -- "VLAN 30" --> PVEB
 
     subgraph DMZ["Zona DMZ"]
@@ -49,7 +50,7 @@ flowchart TB
     end
 
     subgraph TRUSTED["Zona Trusted"]
-        VAZIA["(vazia - nada migrado)"]:::vazio
+        TN["TrueNAS · ZFS"]:::tru
     end
 
     subgraph MGMT["Zona Management"]
@@ -63,7 +64,7 @@ flowchart TB
     classDef fw fill:#5470AD,stroke:#3C568C,color:#F5F7FA
     classDef dmz fill:#C98A2E,stroke:#9C6B1F,color:#2A1B04
     classDef mgmt fill:#7B63B8,stroke:#5E4A93,color:#F5F7FA
-    classDef vazio fill:#4A5058,stroke:#343941,color:#C8CDD4
+    classDef tru fill:#3E9678,stroke:#2C7259,color:#F5F7FA
 ```
 
 | Zonas | |
@@ -72,7 +73,7 @@ flowchart TB
 | 🟫 | Rede plana · VLAN 1 · `192.168.1.0/24` - **por segmentar** |
 | 🟦 | Firewall dedicada (interfaces) |
 | 🟧 | DMZ · VLAN 10 · `10.10.10.0/24` |
-| ⬛ | Trusted · VLAN 20 · `10.10.20.0/24` - criada, ainda sem clientes |
+| 🟩 | Trusted · VLAN 20 · `10.10.20.0/24` |
 | 🟪 | Management · VLAN 30 · `10.10.30.0/24` |
 
 | Ligações | |
@@ -94,7 +95,7 @@ flowchart TB
 | OPNsense - Management | VM 106 | Management | `https://10.10.30.1` | *(mantém-se)* |
 | Proxmox VE (host) | - | Rede plana **e** Management | `https://192.168.1.206:8006` e `https://10.10.30.2:8006` | Management (mantendo o IP antigo como via de recurso) |
 | WireGuard | LXC 103 | **DMZ** | `10.10.10.10:51820/UDP` | *(já migrado)* |
-| TrueNAS | VM 102 | Rede plana | `https://192.168.1.66` | Trusted |
+| TrueNAS | VM 102 | **Trusted** | `https://10.10.20.10`, ou `https://192.168.1.95:8443` a partir da rede de casa | *(já migrado)* |
 | Caddy | LXC 101 | Rede plana | `192.168.1.83:80` e `:443` | Trusted |
 | Nextcloud | LXC 104 | Rede plana | `http://192.168.1.84:8080` | Trusted |
 | Jellyfin | LXC 105 | Rede plana | `http://192.168.1.87:8096` | Trusted |
@@ -200,8 +201,11 @@ O OPNsense é *default-deny*: o que não estiver explicitamente permitido é blo
 | 1 | DMZ | `10.10.10.10` (WireGuard) | Rede Trusted | Pass | Deixa os clientes VPN chegar à zona Trusted |
 | 2 | DMZ | `10.10.10.10` (WireGuard) | Rede Management | Pass | Deixa os clientes VPN chegar ao Proxmox |
 | 3 | MGMT | Rede Management | Qualquer | Pass | O host Proxmox precisa de iniciar ligações a todas as zonas |
-| 4 | DMZ | `10.10.10.10` (WireGuard) | Rede WAN (`192.168.1.0/24`) | Pass | Deixa os clientes VPN chegar à rede plana, onde ainda vivem todos os serviços (ver Histórico, 11/08/2026) |
+| 4 | DMZ | `10.10.10.10` (WireGuard) | Rede WAN (`192.168.1.0/24`) | Pass | Deixa os clientes VPN chegar à rede plana, onde ainda vivem o Caddy, o Nextcloud e o Jellyfin (ver Histórico, 11/08/2026) |
+| 5 | TRUSTED | Rede Trusted | Qualquer | Pass | Saída da zona Trusted: sem isto o TrueNAS fica sem internet, NTP nem atualizações |
 | NAT | WAN | Qualquer | WAN `:51820/UDP` | Pass + DNAT | Encaminha o WireGuard para `10.10.10.10:51820` |
+| NAT | WAN | `192.168.1.0/24` | WAN `:445/TCP` | Pass + DNAT | SMB da rede de casa para o TrueNAS (`10.10.20.10:445`) |
+| NAT | WAN | `192.168.1.0/24` | WAN `:8443/TCP` | Pass + DNAT | Interface do TrueNAS a partir da rede de casa (`10.10.20.10:443`) |
 
 Mais as regras automáticas do OPNsense, que não foram criadas à mão mas contam para o comportamento real: *anti-lockout* (TCP 80/443 para a própria firewall, por interface), bloqueio de redes privadas e *bogons* vindas da WAN, e a *default deny* final.
 
@@ -217,16 +221,16 @@ Só as ligações **iniciadas** contam. Respostas a ligações já estabelecidas
 | De ↓ / Para → | Internet | Rede plana | DMZ | Trusted | Management |
 |---|---|---|---|---|---|
 | **Internet** | - | *(router)* | Só UDP 51820 | Não | Não |
-| **Rede plana** | Sim *(router)* | Sim | Não | Não | Não |
+| **Rede plana** | Sim *(router)* | Sim | Não | Só SMB e `:8443` do TrueNAS, por redirecionamento | Não |
 | **DMZ** (WireGuard) | *(ver nota)* | **Tudo** | - | **Tudo** | **Tudo** |
-| **Trusted** | *(sem clientes)* | Não | Não | - | Não |
+| **Trusted** (TrueNAS) | Sim | Sim | Sim | - | Sim |
 | **Management** | Sim | Sim | **Tudo** | **Tudo** | - |
 
 ```mermaid
 flowchart LR
     NET(("Internet")):::neut
     DMZ["DMZ<br/>WireGuard"]:::dmz
-    TRU["Trusted<br/>(vazia)"]:::vazio
+    TRU["Trusted<br/>TrueNAS"]:::tru
     MGM["Management<br/>Proxmox"]:::mgmt
     PLA["Rede plana<br/>TrueNAS · Nextcloud<br/>Jellyfin · Caddy"]:::flat
 
@@ -256,7 +260,7 @@ Três leituras incómodas que a matriz torna óbvias:
 
 - **DMZ → Trusted deve ser restringida a portas específicas.** Hoje a regra 1 permite qualquer porta; o alvo é só o que os serviços em DMZ precisam mesmo de contactar. A lista está em "Portas por serviço" acima, mas atenção ao aviso sobre o NFS: restringir sem primeiro fixar as portas auxiliares dá origem a falhas intermitentes.
 - **WAN-side → Management**, permitido só a partir do IP do PC do Rui (OpenTofu/Ansible → API do Proxmox). Só passa a fazer sentido na Fase 4, quando existir IaC.
-- **Regras para a Trusted**, quando lá viver alguma coisa - hoje a zona está vazia, por isso não há nada a permitir nem a negar.
+- **Apertar a saída da Trusted.** A regra 5 permite `Trusted → qualquer`, o que inclui a DMZ e a Management, que o TrueNAS não precisa de alcançar. O alvo é permitir só a saída para a internet (DNS, NTP, atualizações) e negar o resto.
 - **Confirmar a saída da DMZ para a internet.** Não existe regra explícita `DMZ → WAN`. O túnel WireGuard funciona à mesma (as respostas saem por *state tracking* da ligação de entrada), mas um `apt update` de dentro do LXC 103 deve estar bloqueado. A confirmar quando for preciso atualizar esse container.
 
 ## Caminhos de pacote (ponta a ponta)
@@ -308,16 +312,16 @@ Curto em rede mas comprido em camadas, e é onde se concentram os incidentes de 
 sequenceDiagram
     participant N as Docker<br/>nextcloud
     participant L as LXC 104<br/>/mnt/nextcloud-data
-    participant H as Proxmox host<br/>/mnt/pve/nextcloud-nfs
-    participant T as TrueNAS<br/>192.168.1.66
+    participant H as Proxmox host<br/>Management · 10.10.30.2
+    participant T as TrueNAS<br/>Trusted · 10.10.20.10
 
     N->>L: 1. escreve em /var/www/html/data
     L->>H: 2. bind mount (mp0)
-    H->>T: 3. NFS sobre a rede plana
+    H->>T: 3. NFS · Management → Trusted, pela firewall
     T->>T: 4. grava no dataset ZFS
 ```
 
-Nenhum destes saltos passa pela firewall dedicada: TrueNAS e Nextcloud estão ambos na rede plana. É a consequência prática de a Trusted ainda estar vazia, e é o que muda quando a migração acontecer.
+Desde 11/08/2026 que o salto 3 **atravessa a firewall dedicada**: sai da zona Management e entra na Trusted. Antes disso o host e o TrueNAS estavam ambos na rede plana e o tráfego não era filtrado por ninguém. Os saltos 1, 2 e 4 continuam locais à máquina e não passam por rede nenhuma.
 
 | Salto | Falha típica já vista |
 |---|---|
