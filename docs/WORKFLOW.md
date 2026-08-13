@@ -1,70 +1,71 @@
-# Arquitetura e fluxo de trabalho (para iniciantes)
+# Architecture and workflow (beginner-friendly)
 
-Documento vivo - atualizar sempre que uma ferramenta mudar de sítio ou o fluxo mudar. Não é um plano de decisão (isso é `TOOLING.md`); é o "onde é que isto vive e como é que tudo se encaixa", explicado de forma simples.
+Living document - update it whenever a tool moves or the workflow changes. This is not a decision document (that is `TOOLING.md`); it is the "where does this live and how does it all fit together", explained plainly.
 
-## Regra de ouro
+## The golden rule
 
-**O teu PC é onde planeias e comandas. O OptiPlex é onde tudo corre 24/7.**
-Quase nenhuma ferramenta é instalada nos dois sítios - cada uma tem um único lugar certo. O teu PC nunca corre nada 24/7; ele só é usado quando estás a trabalhar. O OptiPlex é que fica sempre ligado a fazer o trabalho de fundo.
+**Your PC is where you plan and command. The OptiPlex is where everything runs 24/7.**
+Almost no tool is installed in both places - each one has a single right home. Your PC never runs anything around the clock; it is only used while you are working. The OptiPlex is the one that stays on, doing the background work.
 
 ```mermaid
 graph TB
-    GH[GitHub<br/>cópia + histórico]
+    GH[GitHub<br/>copy + history]
 
-    subgraph PC["O teu PC (Windows)"]
-        GO["Git + Obsidian<br/>código e notas, versionado"]
-        TA["OpenTofu + Ansible<br/>cria VMs e instala o que corre nelas, incl. o k3s"]
-        KH["kubectl / Helm<br/>mete os serviços a correr dentro do k3s"]
+    subgraph PC["Your PC (Windows)"]
+        GO["Git + Obsidian<br/>code and notes, versioned"]
+        TA["OpenTofu + Ansible<br/>creates VMs and installs what runs on them, incl. k3s"]
+        KH["kubectl / Helm<br/>puts the services to run inside k3s"]
     end
 
-    subgraph OP["Servidor OptiPlex (Proxmox)"]
-        PVM["VMs base (bare)<br/>TrueNAS, WireGuard, Caddy, Firewall dedicada"]
-        K3S["Cluster k3s<br/>Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana"]
+    subgraph OP["OptiPlex server (Proxmox)"]
+        PVM["Bare VMs<br/>TrueNAS, WireGuard, Caddy, dedicated firewall"]
+        K3S["k3s cluster<br/>Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana"]
     end
 
-    SL[Slack<br/>recebe os alertas]
+    SL[Slack<br/>receives the alerts]
 
     PC -- "push / pull" --> GH
-    PC -- "rede local: SSH + API Proxmox + API k3s" --> OP
-    K3S -- "alerta via webhook (Uptime Kuma)" --> SL
+    PC -- "local network: SSH + Proxmox API + k3s API" --> OP
+    K3S -- "alert via webhook (Uptime Kuma)" --> SL
 ```
 
-> Arquitetura de rede (VLANs, zonas, firewall dedicada) não está neste diagrama - tem documento próprio: `NETWORK.md`. Este diagrama fica só na visão "PC vs OptiPlex".
+> Network architecture (VLANs, zones, dedicated firewall) is not in this diagram - it has its own document, `NETWORK.md`. This one stays on the "PC vs OptiPlex" view.
 
-## Onde vive cada ferramenta
+## Where each tool lives
 
-| Ferramenta                            | Para que serve                                                                                                                              | Onde fica instalada                                                                            |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Git                                   | Guardar o histórico de todas as alterações (código, configs, notas)                                                                         | **O teu PC** (repo clonado em `Documents\GitHub\homelab`)                                      |
-| GitHub                                | Cópia de segurança do repo na nuvem + histórico partilhável                                                                                 | **Nuvem** (github.com) - o teu PC envia (`push`) e recebe (`pull`)                             |
-| Obsidian                              | Ler/editar a documentação com mais conforto (links, tags, pesquisa)                                                                         | **O teu PC** (aponta para a mesma pasta do repo)                                               |
-| OpenTofu                              | Cria/apaga VMs e LXCs no Proxmox a partir de ficheiros de código                                                                            | **O teu PC** - liga-se à API do Proxmox pela rede local                                        |
-| Ansible                               | Configura as VMs "bare" (TrueNAS, WireGuard, firewall) e instala o próprio k3s no(s) nó(s) dedicado(s)                                      | **O teu PC** - liga-se por SSH às VMs no OptiPlex                                              |
-| **k3s (Kubernetes)**                  | Corre os serviços de aplicação como *workloads* - Jellyfin, Nextcloud, monitorização - em vez de uma VM/LXC própria por serviço             | **OptiPlex**, dentro de 1+ VM(s) criada(s) pelo OpenTofu; o k3s em si é instalado pelo Ansible |
-| **kubectl / Helm**                    | Colocar e atualizar os serviços de aplicação dentro do k3s (manifests/Helm charts, pasta `infra/kubernetes/`)                               | **O teu PC** - liga-se à API do k3s pela rede local                                            |
-| Proxmox                               | O "sistema operativo" do servidor, corre as VMs/LXCs                                                                                        | **OptiPlex** (já instalado)                                                                    |
-| TrueNAS, WireGuard, Caddy, Firewall dedicada | Serviços que correm "bare", fora do k3s - TrueNAS por causa do passthrough de disco; WireGuard e a firewall porque medeiam as zonas de rede; Caddy ainda não foi migrado | **OptiPlex**, cada um na sua própria VM criada pelo Proxmox                                    |
-| Jellyfin, Nextcloud                   | Serviços de aplicação - media server e cloud pessoal                                                                                        | **OptiPlex**, como workloads dentro do k3s                                                     |
-| Uptime Kuma, Prometheus/Grafana       | Vigiar se os serviços acima estão vivos e a correr, e gráficos de CPU/RAM/disco                                                             | **OptiPlex**, como workloads dentro do k3s                                                     |
-| Healthchecks.io                       | "Dead man's switch" para jobs agendados (backups, scrub ZFS) - apanha falhas silenciosas que o Uptime Kuma não vê                           | **OptiPlex**, self-hosted (dentro ou fora do k3s, ainda por decidir)                           |
-| Slack                                 | Onde recebes os alertas (só uma app/site, nada para instalar no homelab)                                                                    | **Nuvem** (slack.com) - o OptiPlex envia-lhe mensagens                                         |
+| Tool | What it is for | Where it is installed |
+| --- | --- | --- |
+| Git | Keeping the history of every change (code, configs, notes) | **Your PC** (repo cloned at `Documents\GitHub\homelab`) |
+| GitHub | Cloud backup of the repo plus a shareable history | **Cloud** (github.com) - your PC pushes and pulls |
+| Obsidian | Reading and editing the documentation more comfortably (links, tags, search) | **Your PC** (points at the same repo folder) |
+| OpenTofu | Creates and destroys VMs and LXCs on Proxmox from code files | **Your PC** - talks to the Proxmox API over the local network |
+| Ansible | Configures the bare VMs (TrueNAS, WireGuard, firewall) and installs k3s itself on the dedicated node(s) | **Your PC** - connects over SSH to the VMs on the OptiPlex |
+| **k3s (Kubernetes)** | Runs the application services as *workloads* - Jellyfin, Nextcloud, monitoring - instead of one VM/LXC per service | **OptiPlex**, inside one or more VMs created by OpenTofu; k3s itself is installed by Ansible |
+| **kubectl / Helm** | Deploying and updating the application services inside k3s (manifests/Helm charts, `infra/kubernetes/`) | **Your PC** - talks to the k3s API over the local network |
+| Proxmox | The server's "operating system", runs the VMs and LXCs | **OptiPlex** (already installed) |
+| TrueNAS, WireGuard, Caddy, dedicated firewall | Services that run bare, outside k3s - TrueNAS because of disk passthrough; WireGuard and the firewall because they mediate the network zones; Caddy has not been migrated yet | **OptiPlex**, each in its own VM created by Proxmox |
+| Jellyfin, Nextcloud | Application services - media server and personal cloud | **OptiPlex**, as workloads inside k3s |
+| Uptime Kuma, Prometheus/Grafana | Watching whether the services above are alive, plus CPU/RAM/disk graphs | **OptiPlex**, as workloads inside k3s |
+| Healthchecks.io | Dead man's switch for scheduled jobs (backups, ZFS scrub) - catches the silent failures Uptime Kuma cannot see | **OptiPlex**, self-hosted (inside or outside k3s, still undecided) |
+| Slack | Where the alerts land (just an app/site, nothing to install in the homelab) | **Cloud** (slack.com) - the OptiPlex sends messages to it |
 
-## O fluxo de trabalho típico, do início ao fim
+## The typical workflow, end to end
 
-1. No teu PC, editas ficheiros (documentação no Obsidian, ou código Terraform/Ansible/manifests Kubernetes num editor) - tudo dentro da pasta `homelab`.
-2. `git commit` + `push` - fica guardado no GitHub.
-3. A partir do teu PC corres `tofu apply` - fala com o Proxmox pela rede local (mesma rede de casa) e cria/atualiza as VMs no OptiPlex, incluindo o(s) nó(s) do k3s.
-4. A partir do teu PC corres `ansible-playbook` - entra por SSH nas VMs (ainda no OptiPlex): configura o que corre "bare" (TrueNAS, WireGuard, firewall) e instala o próprio k3s no(s) nó(s) dedicado(s).
-5. A partir do teu PC corres `kubectl apply` / `helm install` - fala com a API do k3s (já dentro do OptiPlex) e coloca os serviços de aplicação (Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana) a correr lá dentro, a partir dos manifests/Helm charts em `infra/kubernetes/`.
-6. Uma vez o Uptime Kuma a correr *dentro* do k3s, ele próprio (sem precisares de fazer nada) fica a verificar os outros serviços; se algo cair, envia uma mensagem para o Slack através do webhook.
-7. Recebes o alerta no telemóvel/PC via app do Slack - o teu PC não é intermediário nesse último passo.
+1. On your PC you edit files (documentation in Obsidian, or Terraform/Ansible/Kubernetes manifests in an editor) - all inside the `homelab` folder.
+2. `git commit` + `push` - it is now stored on GitHub.
+3. From your PC you run `tofu apply` - it talks to Proxmox over the local network and creates or updates the VMs on the OptiPlex, including the k3s node(s).
+4. From your PC you run `ansible-playbook` - it connects over SSH into those VMs: configures what runs bare (TrueNAS, WireGuard, firewall) and installs k3s itself on the dedicated node(s).
+5. From your PC you run `kubectl apply` / `helm install` - it talks to the k3s API (already inside the OptiPlex) and puts the application services (Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana) to run in there, from the manifests and Helm charts in `infra/kubernetes/`.
+6. Once Uptime Kuma is running *inside* k3s, it watches the other services on its own, with nothing further from you; if something goes down, it sends a message to Slack through the webhook.
+7. You get the alert on your phone or PC via the Slack app - your PC is not an intermediary in that last step.
 
-## Nota técnica: Ansible no Windows precisa de WSL2
+## Technical note: Ansible on Windows needs WSL2
 
-O OpenTofu corre nativamente no Windows sem problema, mas o **Ansible não corre no Windows como "máquina de comando"** - só sabe configurar máquinas Linux remotas, e para isso precisa de ele próprio correr dentro de um Linux. A forma standard de resolver isto é ativar o **WSL2** (Windows Subsystem for Linux, já vem com o Windows 11) e instalar o Ansible lá dentro - continua-se a editar tudo no mesmo PC, só se corre esse comando específico de dentro do WSL em vez do PowerShell.
+OpenTofu runs natively on Windows without trouble, but **Ansible does not run on Windows as the control machine** - it only knows how to configure remote Linux machines, and to do that it needs to run inside a Linux environment itself. The standard way around this is to enable **WSL2** (Windows Subsystem for Linux, included with Windows 11) and install Ansible in there - you still edit everything on the same PC, you just run that one specific command from inside WSL instead of PowerShell.
 
-## Histórico
+## History
 
-- 18/07/2026: primeira versão deste documento, com o mapa de onde vive cada ferramenta e o fluxo de trabalho ponta a ponta.
-- 29/07/2026: atualizado para refletir a adoção do k3s (decidida em 22/07/2026, ver `TOOLING.md`) - este documento nunca tinha sido atualizado com isso. Diagrama, tabela e fluxo passam a distinguir VMs "bare" (TrueNAS, WireGuard, firewall dedicada) de workloads dentro do k3s (Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana); `kubectl`/`Helm` entram como ferramenta e etapa própria do fluxo, depois do Ansible.
-- 29/07/2026: auditoria da documentação - o Caddy estava em falta na tabela e no diagrama (fica como VM "bare", ainda não migrado para o k3s). Corrigido o uso do travessão longo por hífen simples em todo o documento.
+- 18/07/2026: first version of this document, with the map of where each tool lives and the end-to-end workflow.
+- 29/07/2026: updated to reflect the adoption of k3s (decided 22/07/2026, see `TOOLING.md`) - this document had never been updated for it. The diagram, table and workflow now distinguish bare VMs (TrueNAS, WireGuard, dedicated firewall) from workloads inside k3s (Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana); `kubectl`/`Helm` enter as a tool and as their own step in the workflow, after Ansible.
+- 29/07/2026: documentation audit - Caddy was missing from the table and the diagram (it stays a bare VM, not yet migrated to k3s). Em dashes replaced by plain hyphens throughout.
+- 11/08/2026: translated to English.

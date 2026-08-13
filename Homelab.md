@@ -4,26 +4,27 @@ tags: [homelab, moc]
 
 # Homelab v2
 
-Nota principal (MOC - *map of content*) do projeto. Começa sempre por aqui.
+Main note (MOC - *map of content*) for the project. Always start here.
 
-## Estado e decisões
-- [Contexto e histórico do projeto](docs/PROJECT_CONTEXT.md) - objetivo, arquitetura, estado atual e decisões.
-- [Checklist de implementação](docs/CHECKLIST.md) - estado (feito/pendente) de todas as tarefas, por fase.
-- [Esquema lógico de rede](docs/NETWORK.md) - estado atual vs alvo, VLANs, inventário de componentes, regras entre zonas e caminhos de pacote ponta a ponta.
-- [Esquema de dados e storage](docs/STORAGE.md) - do disco físico ao container: ZFS, NFS, bind mounts, backup e dependências de arranque.
-- [Shortlist de hardware](docs/HARDWARE.md) - critérios e opções consideradas para o host.
-- `docs/SECRETS.md` - acessos, tokens e caminhos. **Só existe nesta máquina** (gitignored, não aparece no GitHub) - o link não funciona noutro dispositivo sem copiares o ficheiro à parte. Modelo sem valores reais: [SECRETS.example.md](docs/SECRETS.example.md).
+## Status and decisions
+- [Project context and history](docs/PROJECT_CONTEXT.md) - goal, architecture, current state and decisions.
+- [Implementation checklist](docs/CHECKLIST.md) - status (done/pending) of every task, by phase.
+- [Network reference](docs/NETWORK.md) - current vs target state, VLANs, component inventory, inter-zone rules and end-to-end packet paths.
+- [Data and storage map](docs/STORAGE.md) - from the physical disk to the container: ZFS, NFS, bind mounts, backups and boot-order dependencies.
+- [Hardware shortlist](docs/HARDWARE.md) - criteria and options considered for the host.
+- `docs/SECRETS.md` - access details, tokens and paths. **Only exists on this machine** (gitignored, never on GitHub) - the link will not work on another device unless you copy the file across separately. Template with no real values: [SECRETS.example.md](docs/SECRETS.example.md).
 
-## Como trabalhar neste projeto
-- [Ferramentas, documentação, monitorização e IaC (plano)](docs/TOOLING.md) - Obsidian, Slack/Uptime Kuma/Healthchecks, OpenTofu/Ansible.
-- [Arquitetura e fluxo de trabalho](docs/WORKFLOW.md) - explicação para iniciantes de onde vive cada ferramenta e como tudo se encaixa.
+## How to work on this project
+- [Tooling, documentation, monitoring and IaC (plan)](docs/TOOLING.md) - Obsidian, Slack/Uptime Kuma/Healthchecks, OpenTofu/Ansible.
+- [Architecture and workflow](docs/WORKFLOW.md) - a beginner-friendly explanation of where each tool lives and how it all fits together.
 
-## Serviços
-*(ainda vazio - criar uma nota por serviço em `docs/services/` quando o primeiro for instalado, ex.: TrueNAS)*
+## Services
+*(still empty - create one note per service under `docs/services/` once the first one is installed, e.g. TrueNAS)*
 
 ## Runbooks
-*(ainda vazio - criar procedimentos de recuperação em `docs/runbooks/` à medida que os serviços forem ficando estáveis)*
+*(still empty - create recovery procedures under `docs/runbooks/` as services become stable)*
 
-## Histórico
-- 18/07/2026: criada esta nota principal, a servir de ponto de entrada no vault do Obsidian.
-- 29/07/2026: adicionado link para `docs/SECRETS.md` (local, gitignored) e o respetivo modelo `docs/SECRETS.example.md`.
+## History
+- 18/07/2026: created this main note, as the entry point into the Obsidian vault.
+- 29/07/2026: added links to `docs/SECRETS.md` (local, gitignored) and its template `docs/SECRETS.example.md`.
+- 11/08/2026: documentation translated to English and files renamed, as the project became part of a public portfolio.
