@@ -1,6 +1,6 @@
 # Arquitetura e fluxo de trabalho (para iniciantes)
 
-Documento vivo - atualizar sempre que uma ferramenta mudar de sítio ou o fluxo mudar. Não é um plano de decisão (isso é `PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md`); é o "onde é que isto vive e como é que tudo se encaixa", explicado de forma simples.
+Documento vivo - atualizar sempre que uma ferramenta mudar de sítio ou o fluxo mudar. Não é um plano de decisão (isso é `TOOLING.md`); é o "onde é que isto vive e como é que tudo se encaixa", explicado de forma simples.
 
 ## Regra de ouro
 
@@ -29,7 +29,7 @@ graph TB
     K3S -- "alerta via webhook (Uptime Kuma)" --> SL
 ```
 
-> Arquitetura de rede (VLANs, zonas, firewall dedicada) não está neste diagrama - tem documento próprio: `ESQUEMA_LOGICO_REDE.md`. Este diagrama fica só na visão "PC vs OptiPlex".
+> Arquitetura de rede (VLANs, zonas, firewall dedicada) não está neste diagrama - tem documento próprio: `NETWORK.md`. Este diagrama fica só na visão "PC vs OptiPlex".
 
 ## Onde vive cada ferramenta
 
@@ -66,5 +66,5 @@ O OpenTofu corre nativamente no Windows sem problema, mas o **Ansible não corre
 ## Histórico
 
 - 18/07/2026: primeira versão deste documento, com o mapa de onde vive cada ferramenta e o fluxo de trabalho ponta a ponta.
-- 29/07/2026: atualizado para refletir a adoção do k3s (decidida em 22/07/2026, ver `PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md`) - este documento nunca tinha sido atualizado com isso. Diagrama, tabela e fluxo passam a distinguir VMs "bare" (TrueNAS, WireGuard, firewall dedicada) de workloads dentro do k3s (Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana); `kubectl`/`Helm` entram como ferramenta e etapa própria do fluxo, depois do Ansible.
+- 29/07/2026: atualizado para refletir a adoção do k3s (decidida em 22/07/2026, ver `TOOLING.md`) - este documento nunca tinha sido atualizado com isso. Diagrama, tabela e fluxo passam a distinguir VMs "bare" (TrueNAS, WireGuard, firewall dedicada) de workloads dentro do k3s (Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana); `kubectl`/`Helm` entram como ferramenta e etapa própria do fluxo, depois do Ansible.
 - 29/07/2026: auditoria da documentação - o Caddy estava em falta na tabela e no diagrama (fica como VM "bare", ainda não migrado para o k3s). Corrigido o uso do travessão longo por hífen simples em todo o documento.

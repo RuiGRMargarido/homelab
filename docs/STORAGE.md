@@ -1,6 +1,6 @@
 # Esquema de Dados e Storage - Homelab v2
 
-Companheiro do [ESQUEMA_LOGICO_REDE.md](ESQUEMA_LOGICO_REDE.md): onde aquele mostra por onde passam os pacotes, este mostra **onde vivem os ficheiros** e por quantas camadas passam entre o disco físico e a aplicação que os lê.
+Companheiro do [NETWORK.md](NETWORK.md): onde aquele mostra por onde passam os pacotes, este mostra **onde vivem os ficheiros** e por quantas camadas passam entre o disco físico e a aplicação que os lê.
 
 Existe por um motivo concreto: a cadeia é comprida, cada elo é invisível a partir do elo seguinte, e já causou três incidentes distintos (permissões NFS, mounts perdidos após reinício, e caminhos confundidos no diagnóstico). Ter isto desenhado poupa o tempo de reconstruir a cadeia de cabeça de cada vez.
 
@@ -166,8 +166,8 @@ pct stop 105 && pct start 105
 
 **Porque exFAT e não ZFS**: mantém o disco utilizável como disco externo comum no Windows, em troca de perder as *Replication Tasks* nativas do TrueNAS. Foi uma escolha deliberada.
 
-Restore validado em 03/08/2026 a três níveis (listagens, checksum, reprodução real de um ficheiro). Receita de remontagem depois de desligar o disco, em `SEGREDOS.md`.
+Restore validado em 03/08/2026 a três níveis (listagens, checksum, reprodução real de um ficheiro). Receita de remontagem depois de desligar o disco, em `SECRETS.md`.
 
 ## Histórico
 
-- 06/08/2026: criado este documento. A cadeia de storage estava descrita só em fragmentos espalhados pelo `CHECKLIST.md` (dentro dos relatos de incidentes) e pelo `SEGREDOS.md` (caminhos soltos), sem nenhuma vista de conjunto. Ao desenhá-la de ponta a ponta tornaram-se visíveis três lacunas de backup que não estavam registadas em lado nenhum, a mais séria sendo a base de dados do Nextcloud.
+- 06/08/2026: criado este documento. A cadeia de storage estava descrita só em fragmentos espalhados pelo `CHECKLIST.md` (dentro dos relatos de incidentes) e pelo `SECRETS.md` (caminhos soltos), sem nenhuma vista de conjunto. Ao desenhá-la de ponta a ponta tornaram-se visíveis três lacunas de backup que não estavam registadas em lado nenhum, a mais séria sendo a base de dados do Nextcloud.

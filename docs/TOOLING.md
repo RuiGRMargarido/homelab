@@ -40,7 +40,7 @@ Tentei procurar conectores prontos (Slack, Obsidian) através do sistema de "con
   - `docs/runbooks/` - procedimentos de recuperação por serviço ("se X falhar, fazer Y"). Importante para disaster recovery - documentar não é só `PROJECT_CONTEXT.md`, é também "como restauro isto às 2h da manhã".
   - `docs/PROJECT_CONTEXT.md` mantém-se como está - o histórico/decisões recentes já segue o padrão de um log de decisões (bom hábito, continuar).
   - `docs/CHECKLIST.md` (criado 22/07/2026) - estado feito/pendente de todas as tarefas, por fase; o `PROJECT_CONTEXT.md` deixou de duplicar isto.
-  - `docs/ESQUEMA_LOGICO_REDE.md` (criado 29/07/2026) - diagrama e referência rápida da arquitetura de rede (VLANs, NICs, regras), à parte do log de decisões.
+  - `docs/NETWORK.md` (criado 29/07/2026) - diagrama e referência rápida da arquitetura de rede (VLANs, NICs, regras), à parte do log de decisões.
   - Tags sugeridas: `#pendente`, `#decisão`, `#risco`, `#servico` - para navegares pelo grafo do Obsidian em vez de só pelas pastas.
 
 ## 3. Monitorização e alertas - Slack
@@ -122,4 +122,4 @@ Isto não substitui `code-review`/`security-review` (continuam obrigatórios ant
 ## 6. Notas de segurança
 - Nunca commitar tokens/API keys/passwords em texto - nem nos `.tfvars`, nem nos playbooks, nem nas notas do Obsidian se o vault for o repo público... **este repo é privado**, mas mesmo assim, tratar segredos como se pudesse ficar público um dia.
 - Webhooks do Slack são, na prática, um "bearer token" - tratar o URL como segredo (não colar em notas partilhadas).
-- **Referência de acessos e segredos (criado 29/07/2026)**: `docs/SEGREDOS.md` guarda os acessos administrativos, tokens e caminhos de todos os serviços - existe só localmente (`.gitignore`), nunca é commitado. O modelo sem valores reais, `docs/SEGREDOS.example.md`, esse sim está no repo, e documenta a estrutura. Para passwords realmente importantes (Proxmox, router, firewall), o ideal a prazo é um gestor de passwords - o `SEGREDOS.md` é para referência rápida, não o cofre principal.
+- **Referência de acessos e segredos (criado 29/07/2026)**: `docs/SECRETS.md` guarda os acessos administrativos, tokens e caminhos de todos os serviços - existe só localmente (`.gitignore`), nunca é commitado. O modelo sem valores reais, `docs/SECRETS.example.md`, esse sim está no repo, e documenta a estrutura. Para passwords realmente importantes (Proxmox, router, firewall), o ideal a prazo é um gestor de passwords - o `SECRETS.md` é para referência rápida, não o cofre principal.

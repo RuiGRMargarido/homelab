@@ -128,7 +128,7 @@ Referência para escrever as regras de firewall restritas que ainda faltam (ver 
 
 ## Diagrama 2: estado alvo (quando a Fase 2 fechar)
 
-![Arquitetura de rede, estado alvo](diagrams/rede-arquitetura-pt.svg)
+![Arquitetura de rede, estado alvo](diagrams/network-architecture.svg)
 
 | Zonas |                                        |
 | ----- | -------------------------------------- |
@@ -163,7 +163,7 @@ Referência para escrever as regras de firewall restritas que ainda faltam (ver 
 
 O que está mesmo ligado a quê, com cabos e portas reais. Os diagramas anteriores são lógicos (zonas e VLANs); este é o que serve para saber que cabo desligar.
 
-![Topologia fisica](diagrams/topologia-fisica.svg)
+![Topologia fisica](diagrams/physical-topology.svg)
 
 ### Mapa de portas do switch
 
@@ -306,7 +306,7 @@ sequenceDiagram
 
 ### Fluxo 2: Nextcloud lê um ficheiro do TrueNAS
 
-Curto em rede mas comprido em camadas, e é onde se concentram os incidentes de storage. Detalhe completo da cadeia de dados em [ESQUEMA_DADOS_E_STORAGE.md](ESQUEMA_DADOS_E_STORAGE.md).
+Curto em rede mas comprido em camadas, e é onde se concentram os incidentes de storage. Detalhe completo da cadeia de dados em [STORAGE.md](STORAGE.md).
 
 ```mermaid
 sequenceDiagram

@@ -25,7 +25,7 @@ Hardware: Dell OptiPlex 3060 Micro (i5-8500T, 16GB RAM), 1TB HDD, 1TB external S
 
 Traffic between zones is mediated by a dedicated OPNsense VM. The home network reaches the internet directly, without crossing the firewall; only the homelab VLANs go through it.
 
-![Network architecture](docs/diagrams/rede-arquitetura.svg)
+![Network architecture](docs/diagrams/network-architecture.svg)
 
 | Zone | VLAN | Subnet | Contents |
 |---|---|---|---|
@@ -34,7 +34,7 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 | Management | 30 | `10.10.30.0/24` | Proxmox web UI and API, switch management |
 | VPN tunnel | - | `10.10.40.0/24` | Virtual subnet, assigned to authenticated clients |
 
-**Note on the diagram above**: it shows the target state. The segmentation is built and working, and WireGuard, the Proxmox management interface and TrueNAS have been migrated. Caddy, Nextcloud and Jellyfin are still on the flat network. The [network document](docs/ESQUEMA_LOGICO_REDE.md) tracks current state and target state as separate diagrams, deliberately, so the documentation never claims more than what exists.
+**Note on the diagram above**: it shows the target state. The segmentation is built and working, and WireGuard, the Proxmox management interface and TrueNAS have been migrated. Caddy, Nextcloud and Jellyfin are still on the flat network. The [network document](docs/NETWORK.md) tracks current state and target state as separate diagrams, deliberately, so the documentation never claims more than what exists.
 
 ## Current status
 
@@ -77,15 +77,15 @@ These are the parts worth reading if you want to see how problems were approache
 | Document | Contents |
 |---|---|
 | [CHECKLIST.md](docs/CHECKLIST.md) | Task-level status per phase, plus the full incident log |
-| [ESQUEMA_LOGICO_REDE.md](docs/ESQUEMA_LOGICO_REDE.md) | Network reference: current vs target state, physical topology, firewall rule matrix, end-to-end packet paths |
-| [ESQUEMA_DADOS_E_STORAGE.md](docs/ESQUEMA_DADOS_E_STORAGE.md) | Storage chain from physical disk to container, boot-order dependencies, backup design |
+| [NETWORK.md](docs/NETWORK.md) | Network reference: current vs target state, physical topology, firewall rule matrix, end-to-end packet paths |
+| [STORAGE.md](docs/STORAGE.md) | Storage chain from physical disk to container, boot-order dependencies, backup design |
 | [PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) | Decision log with rationale, including reversed decisions |
-| [PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md](docs/PLANO_FERRAMENTAS_E_BOAS_PRATICAS.md) | Tooling decisions: IaC, monitoring, documentation |
-| [ARQUITETURA_E_FLUXO_DE_TRABALHO.md](docs/ARQUITETURA_E_FLUXO_DE_TRABALHO.md) | Where each tool runs and how the workflow fits together |
-| [HARDWARE_SHORTLIST.md](docs/HARDWARE_SHORTLIST.md) | Hardware criteria and options considered |
+| [TOOLING.md](docs/TOOLING.md) | Tooling decisions: IaC, monitoring, documentation |
+| [WORKFLOW.md](docs/WORKFLOW.md) | Where each tool runs and how the workflow fits together |
+| [HARDWARE.md](docs/HARDWARE.md) | Hardware criteria and options considered |
 
 ## A note on secrets
 
-Credentials, keys and access details live in `docs/SEGREDOS.md`, which is gitignored and has never been committed. [SEGREDOS.example.md](docs/SEGREDOS.example.md) is the versioned template with the structure and no real values.
+Credentials, keys and access details live in `docs/SECRETS.md`, which is gitignored and has never been committed. [SECRETS.example.md](docs/SECRETS.example.md) is the versioned template with the structure and no real values.
 
 Hostnames, public addresses and personal identifiers have been redacted from the public documentation. Internal RFC 1918 addresses are kept because they carry no risk on their own and removing them would make the network documentation unreadable.

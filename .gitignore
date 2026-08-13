@@ -2,8 +2,8 @@
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
 
-# Segredos e credenciais - nunca commitar (ver docs/SEGREDOS.example.md para o modelo sem valores)
-docs/SEGREDOS.md
+# Segredos e credenciais - nunca commitar (ver docs/SECRETS.example.md para o modelo sem valores)
+docs/SECRETS.md
 infra/secrets/
 *.tfvars
 *vault.yml

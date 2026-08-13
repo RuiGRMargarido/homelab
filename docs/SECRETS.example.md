@@ -1,8 +1,8 @@
 # Segredos e Acessos (modelo)
 
-Este ficheiro é o modelo, versionado no repo, sem nenhum valor real. A versão com os valores verdadeiros é `docs/SEGREDOS.md`, que existe só localmente (está no `.gitignore`, nunca é commitada).
+Este ficheiro é o modelo, versionado no repo, sem nenhum valor real. A versão com os valores verdadeiros é `docs/SECRETS.md`, que existe só localmente (está no `.gitignore`, nunca é commitada).
 
-Se estás a configurar este projeto de novo (nova máquina, ou a começar do zero): copia este ficheiro para `docs/SEGREDOS.md` e preenche os valores reais lá.
+Se estás a configurar este projeto de novo (nova máquina, ou a começar do zero): copia este ficheiro para `docs/SECRETS.md` e preenche os valores reais lá.
 
 Para passwords/tokens importantes, o ideal é guardá-los também (ou só) num gestor de passwords (Bitwarden, KeePassXC, etc.) - este ficheiro serve para referência rápida e para os campos que não são segredo em si (URLs, caminhos, nomes de utilizador).
 
@@ -122,7 +122,7 @@ Inclui o nome do serviço no título (ex. "Contas de utilizador (Nextcloud)"), p
 
 ## Histórico
 
-- 29/07/2026: criado este modelo e o `docs/SEGREDOS.md` (local, gitignored) correspondente.
-- 29/07/2026: reestruturado para acompanhar a reorganização do `SEGREDOS.md` (secções separadas para VMs/containers, acessos por serviço, DNS dinâmico, WireGuard).
+- 29/07/2026: criado este modelo e o `docs/SECRETS.md` (local, gitignored) correspondente.
+- 29/07/2026: reestruturado para acompanhar a reorganização do `SECRETS.md` (secções separadas para VMs/containers, acessos por serviço, DNS dinâmico, WireGuard).
 - 31/07/2026: reestruturado outra vez - prática de IP estático (não só DHCP) para VMs/LXCs; serviços com vários utilizadores passam a ter secção própria com sub-tabela "Contas de utilizador" (padrão do WireGuard "Peers"), em vez de linhas repetidas na tabela genérica.
 - 01/08/2026: "Acessos administrativos por serviço" volta a ser a tabela central (uma linha por serviço), logo a seguir a "VMs e Containers", com uma coluna "Todas as contas" a ligar para a sub-tabela de cada serviço. Títulos "### Contas de utilizador" passam a incluir o nome do serviço entre parênteses.
