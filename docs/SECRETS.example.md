@@ -1,128 +1,131 @@
-# Segredos e Acessos (modelo)
+# Secrets and Access (template)
 
-Este ficheiro é o modelo, versionado no repo, sem nenhum valor real. A versão com os valores verdadeiros é `docs/SECRETS.md`, que existe só localmente (está no `.gitignore`, nunca é commitada).
+This file is the template, versioned in the repo, with no real values in it. The version holding the actual values is `docs/SECRETS.md`, which exists only locally (it is in `.gitignore` and is never committed).
 
-Se estás a configurar este projeto de novo (nova máquina, ou a começar do zero): copia este ficheiro para `docs/SECRETS.md` e preenche os valores reais lá.
+If you are setting this project up fresh (new machine, or starting from scratch): copy this file to `docs/SECRETS.md` and fill in the real values there.
 
-Para passwords/tokens importantes, o ideal é guardá-los também (ou só) num gestor de passwords (Bitwarden, KeePassXC, etc.) - este ficheiro serve para referência rápida e para os campos que não são segredo em si (URLs, caminhos, nomes de utilizador).
+For important passwords and tokens, the better place is a password manager (Bitwarden, KeePassXC, etc.), either as well as or instead of this file. This one is for quick reference and for the fields that are not secrets in themselves (URLs, paths, usernames).
 
-## Índice
+## Index
 
-- [Infraestrutura base](#infraestrutura-base)
-- [VMs e Containers (Proxmox)](#vms-e-containers-proxmox---inclui-reserva-dhcp)
-- [Acessos administrativos por serviço](#acessos-administrativos-por-serviço)
-- [Serviço com vários utilizadores (modelo)](#nome-do-serviço-com-vários-utilizadores-ou-configuração-própria-ex-truenas-nextcloud-jellyfin)
+- [Base infrastructure](#base-infrastructure)
+- [VMs and Containers (Proxmox)](#vms-and-containers-proxmox---includes-dhcp-reservations)
+- [Administrative access per service](#administrative-access-per-service)
+- [Service with multiple users (template)](#name-of-a-service-with-multiple-users-or-its-own-configuration-eg-truenas-nextcloud-jellyfin)
 - [WireGuard](#wireguard)
-- [DNS dinâmico](#dns-dinâmico-acesso-de-fora-de-casa)
-- [Tokens e chaves de API](#tokens-e-chaves-de-api)
-- [Ficheiros de chaves](#ficheiros-de-chaves-não-inlinar-o-conteúdo-aqui-só-o-caminho)
-- [Datasets e caminhos importantes](#datasets-e-caminhos-importantes)
-- [Histórico](#histórico)
+- [Dynamic DNS](#dynamic-dns-access-from-outside-the-house)
+- [API tokens and keys](#api-tokens-and-keys)
+- [Key files](#key-files-never-inline-the-contents-here-only-the-path)
+- [Datasets and important paths](#datasets-and-important-paths)
+- [History](#history)
 
-## Infraestrutura base
+## Base infrastructure
 
-| Serviço | URL / endereço | Utilizador | Password |
+| Service | URL / address | Username | Password |
 |---|---|---|---|
-| Proxmox VE | https://\<ip-do-optiplex\>:8006 | root@pam (ou o utilizador dedicado da Fase 4) | *(ver gestor de passwords)* |
-| Router | http://\<ip-do-router\> | | |
-| Switch | http://\<ip-do-switch\> | | |
+| Proxmox VE | https://\<optiplex-ip\>:8006 | root@pam (or the dedicated user from Phase 4) | *(see password manager)* |
+| Router | http://\<router-ip\> | | |
+| Switch | http://\<switch-ip\> | | |
 
-## VMs e Containers (Proxmox) - inclui reserva DHCP
+## VMs and Containers (Proxmox) - includes DHCP reservations
 
-Prática: todo servidor/VM tem IP estático configurado localmente (`/etc/network/interfaces`), mais reserva DHCP no router como documentação/consistência (nunca depender só de DHCP dinâmico - o lease pode expirar sem renovar sozinho).
+Practice: every server and VM has a static IP configured locally (`/etc/network/interfaces`), plus a DHCP reservation on the router as documentation and consistency (never rely on dynamic DHCP alone - the lease can expire without renewing itself).
 
-| ID | Nome | Tipo | IP | MAC | Reserva feita? | Notas |
+Practice for containers: always `ip6=manual`, never `ip6=dhcp` (the default when creating one). With `dhcp`, the container waits five minutes for a DHCPv6 server that does not exist on this network before the console becomes usable.
+
+| ID | Name | Type | IP | MAC | Reservation done? | Notes |
 |---|---|---|---|---|---|---|
 | | | VM/LXC | | | | |
 
-## Acessos administrativos por serviço
+## Administrative access per service
 
-Tabela central com um acesso principal por serviço. Para serviços com mais do que uma conta, a última coluna liga para a lista completa na secção própria do serviço (ver exemplo abaixo).
+Central table with one main access per service. For services with more than one account, the last column links to the full list in that service's own section (see the example below).
 
-| Serviço | Acesso | Utilizador (principal) | Password | Todas as contas |
+| Service | Access | Username (main) | Password | All accounts |
 |---|---|---|---|---|
-| \<Serviço com uma só conta\> | | | | - |
-| \<Serviço com várias contas\> | | | | [Contas →](#contas-de-utilizador-nome-do-servico) |
-| VM Firewall (OPNsense/pfSense) | https://\<ip-da-vm-firewall\> | | | - |
+| \<Service with a single account\> | | | | - |
+| \<Service with several accounts\> | | | | [Accounts →](#user-accounts-service-name) |
+| Firewall VM (OPNsense/pfSense) | https://\<firewall-vm-ip\> | | | - |
 | Uptime Kuma | http://\<ip\>:3001 | | | - |
-| k3s (kubectl) | *(ver kubeconfig, caminho abaixo)* | | | - |
-| GitHub | github.com/\<utilizador\>/\<repo\> | | *(gerido pelo Git Credential Manager, não precisa de estar aqui)* | - |
+| k3s (kubectl) | *(see kubeconfig, path below)* | | | - |
+| GitHub | github.com/\<user\>/\<repo\> | | *(handled by Git Credential Manager, no need to keep it here)* | - |
 
-## \<Nome do serviço com vários utilizadores ou configuração própria\> (ex.: TrueNAS, Nextcloud, Jellyfin)
+## \<Name of a service with multiple users or its own configuration\> (e.g. TrueNAS, Nextcloud, Jellyfin)
 
-Cria uma secção destas para cada serviço que tenha mais do que um utilizador, ou configuração suficiente para justificar uma secção própria (segue o padrão do WireGuard abaixo). Serviços simples (só uma consola root) ficam só na tabela genérica "Acessos administrativos por serviço".
+Create a section like this for every service that has more than one user, or enough configuration to justify its own section (follow the WireGuard pattern below). Simple services (just a root console) stay only in the generic "Administrative access per service" table.
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Onde corre | |
-| Acesso | |
+| Where it runs | |
+| Access | |
 
-### Contas de utilizador (Nome do Serviço)
+### User accounts (Service Name)
 
-Inclui o nome do serviço no título (ex. "Contas de utilizador (Nextcloud)"), para a ligação a partir da tabela central não depender da ordem das secções no documento.
+Include the service name in the heading (e.g. "User accounts (Nextcloud)"), so the link from the central table does not depend on the order of sections in the document.
 
-| Utilizador | Password | Notas |
+| Username | Password | Notes |
 |---|---|---|
 | | | |
 
 ## WireGuard
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Onde corre | |
-| Porta | |
-| Rede do túnel | |
-| IP do servidor no túnel | |
-| Endpoint para clientes | |
-| Chave pública do servidor (não secreta) | |
-| Chave privada do servidor | *(caminho no servidor, nunca colar aqui)* |
-| Configs dos clientes (peers) | *(caminho)* |
-| Port-forward no router | |
+| Where it runs | |
+| Port | |
+| Tunnel network | |
+| Server IP inside the tunnel | |
+| Endpoint for clients | |
+| Server public key (not secret) | |
+| Server private key | *(path on the server, never paste it here)* |
+| Client configs (peers) | *(path)* |
+| Port forward on the router | |
 
-### Peers (clientes)
+### Peers (clients)
 
-| Nome | IP no túnel | Ficheiro no servidor |
+| Name | Tunnel IP | File on the server |
 |---|---|---|
 
-## DNS dinâmico (acesso de fora de casa)
+## Dynamic DNS (access from outside the house)
 
-| Campo | Valor |
+| Field | Value |
 |---|---|
-| Provedor | \<No-IP / DuckDNS / Dynu / outro\> |
+| Provider | \<No-IP / DuckDNS / Dynu / other\> |
 | Hostname | |
-| Plano | |
-| Login da conta | |
-| Notas | *(ex.: planos free podem exigir confirmação periódica do hostname)* |
+| Plan | |
+| Account login | |
+| Notes | *(e.g. free plans often require periodic hostname confirmation)* |
 
-## Tokens e chaves de API
+## API tokens and keys
 
-| O quê | Para que serve | Onde está / valor |
+| What | What it is for | Where it is / value |
 |---|---|---|
-| Proxmox API token (OpenTofu) | Fase 4 - permite ao OpenTofu criar/gerir VMs sem usar root@pam | |
-| Slack Incoming Webhook | Alertas para #homelab-alerts | *(tratar como password - é um bearer token)* |
-| Healthchecks.io (se aplicável) | Ping dos jobs agendados | |
+| Proxmox API token (OpenTofu) | Phase 4 - lets OpenTofu create and manage VMs without using root@pam | |
+| Slack Incoming Webhook | Alerts to #homelab-alerts | *(treat as a password - it is a bearer token)* |
+| Healthchecks.io (if applicable) | Pings from scheduled jobs | |
 
-## Ficheiros de chaves (não inlinar o conteúdo aqui, só o caminho)
+## Key files (never inline the contents here, only the path)
 
-| O quê | Caminho |
+| What | Path |
 |---|---|
-| Chave SSH usada pelo Ansible | |
-| Kubeconfig do k3s | |
-| `infra/secrets/*.tfvars` (OpenTofu) | `C:\Users\ruigr\Documents\GitHub\homelab\infra\secrets\` (gitignored, ver Fase 4) |
+| SSH key used by Ansible | |
+| k3s kubeconfig | |
+| `infra/secrets/*.tfvars` (OpenTofu) | `<repo>\infra\secrets\` (gitignored, see Phase 4) |
 
-## Datasets e caminhos importantes
+## Datasets and important paths
 
-| O quê | Caminho |
+| What | Path |
 |---|---|
-| Datasets TrueNAS | |
-| Ponto de montagem do backup (SSD externo) | |
-| Disco(s) em passthrough - caminho `by-id` | |
-| Repo homelab (neste PC) | `C:\Users\ruigr\Documents\GitHub\homelab` |
-| Repo homelab (no OptiPlex, se aplicável) | |
+| TrueNAS datasets | |
+| Backup mount point (external SSD) | |
+| Passthrough disk(s) - `by-id` path | |
+| Homelab repo (on this PC) | |
+| Homelab repo (on the OptiPlex, if applicable) | |
 
-## Histórico
+## History
 
-- 29/07/2026: criado este modelo e o `docs/SECRETS.md` (local, gitignored) correspondente.
-- 29/07/2026: reestruturado para acompanhar a reorganização do `SECRETS.md` (secções separadas para VMs/containers, acessos por serviço, DNS dinâmico, WireGuard).
-- 31/07/2026: reestruturado outra vez - prática de IP estático (não só DHCP) para VMs/LXCs; serviços com vários utilizadores passam a ter secção própria com sub-tabela "Contas de utilizador" (padrão do WireGuard "Peers"), em vez de linhas repetidas na tabela genérica.
-- 01/08/2026: "Acessos administrativos por serviço" volta a ser a tabela central (uma linha por serviço), logo a seguir a "VMs e Containers", com uma coluna "Todas as contas" a ligar para a sub-tabela de cada serviço. Títulos "### Contas de utilizador" passam a incluir o nome do serviço entre parênteses.
+- 29/07/2026: created this template and the matching `docs/SECRETS.md` (local, gitignored).
+- 29/07/2026: restructured to follow the reorganisation of `SECRETS.md` (separate sections for VMs/containers, access per service, dynamic DNS, WireGuard).
+- 31/07/2026: restructured again - static IP practice (not DHCP alone) for VMs and LXCs; services with several users now get their own section with a "User accounts" sub-table (the WireGuard "Peers" pattern), instead of repeated rows in the generic table.
+- 01/08/2026: "Administrative access per service" became the central table again (one row per service), right after "VMs and Containers", with an "All accounts" column linking to each service's sub-table. The "### User accounts" headings now include the service name in brackets.
+- 11/08/2026: translated to English; added the `ip6=manual` practice for new containers.

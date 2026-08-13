@@ -1,125 +1,126 @@
-# Plano: Ferramentas, Documentação e Boas Práticas (Homelab v2)
+# Plan: Tooling, Documentation and Good Practices (Homelab v2)
 
-Documento de decisão. Cobre: skills/plugins do Claude Code a adotar, gestão de documentação via Obsidian, monitorização com alertas no Slack, e adoção de Infrastructure as Code (IaC). Criado em 18/07/2026, com base em pesquisa e decisões tomadas nesta sessão. Revisto em 22/07/2026 para dar prioridade às práticas mais representativas de infraestrutura moderna (Kubernetes, observabilidade, CI aplicado a IaC).
+Decision document. Covers: which Claude Code skills and plugins to adopt, documentation management through Obsidian, monitoring with Slack alerts, and the adoption of Infrastructure as Code (IaC). Created on 18/07/2026, from research and decisions taken in that session. Revised on 22/07/2026 to prioritise the practices that most represent modern infrastructure (Kubernetes, observability, CI applied to IaC).
 
-## 0. Decisões desta sessão
-- **Obsidian**: o Rui já usa Obsidian (testou noutro projeto). Quer manter grátis - sem Obsidian Sync pago. Sincronização via Git.
-- **Monitorização**: self-hosted assim que possível (Uptime Kuma + Healthchecks.io + Prometheus/Grafana desde o início, não só mais tarde), com alertas no Slack.
-- **IaC**: adotar OpenTofu + Ansible desde já, mesmo estando no início do v2.
-- **Kubernetes**: os serviços de aplicação (Jellyfin, Nextcloud, monitorização) passam a correr num cluster **k3s**, não em LXCs/VMs isolados por serviço - ver secção 4.
-- **CI**: validação automática do IaC via GitHub Actions antes de qualquer `apply` - ver secção 4.
+## 0. Decisions from that session
+- **Obsidian**: already in use on another project. Staying on the free tier, no paid Obsidian Sync. Synchronisation over Git.
+- **Monitoring**: self-hosted as soon as possible (Uptime Kuma + Healthchecks.io + Prometheus/Grafana from the start, not later on), alerting into Slack.
+- **IaC**: adopt OpenTofu + Ansible right away, even this early into v2.
+- **Kubernetes**: application services (Jellyfin, Nextcloud, monitoring) move to a **k3s** cluster, rather than one isolated LXC/VM per service - see section 4.
+- **CI**: automatic IaC validation through GitHub Actions before any `apply` - see section 4.
 
-**Motivo destas 3 mudanças (22/07/2026):** o plano original resolvia o homelab mas evitava as três práticas que mais distinguem infraestrutura moderna de "umas VMs com serviços". Kubernetes não estava previsto de todo, apesar de ser o modelo dominante para correr aplicações; Prometheus/Grafana estava adiado como "não urgente", quando observabilidade é precisamente o que permite perceber o que está a acontecer antes de partir; e havia experiência de CI (GitHub Actions) que não estava a ser aplicada à infraestrutura, onde um erro custa bem mais caro do que num build.
+**Why these three changes (22/07/2026):** the original plan solved the homelab but avoided the three practices that most distinguish modern infrastructure from "some VMs with services on them". Kubernetes was not in the plan at all, despite being the dominant model for running applications; Prometheus/Grafana had been deferred as "not urgent", when observability is precisely what lets you see what is happening before it breaks; and there was existing CI experience (GitHub Actions) that was not being applied to infrastructure, where a mistake costs far more than in a build.
 
-## 1. Claude Code - skills e plugins a adotar
+## 1. Claude Code - skills and plugins to adopt
 
-### Já disponíveis (sem instalar nada)
-- `schedule` - para lembretes/tarefas recorrentes (ex.: digest periódico de estado do homelab).
-- `loop` - para sessões de trabalho iterativas (ex.: ir montando o IaC playbook a playbook).
-- `code-review` / `security-review` - **usar sempre antes de aplicar** alterações de Terraform/Ansible que toquem infraestrutura real. Isto é a rede de segurança mais importante ao adotar IaC cedo.
-- `verify` - validar que um serviço realmente funciona fim-a-fim (não só que o `terraform apply` ou `ansible-playbook` correu sem erro).
+### Already available (nothing to install)
+- `schedule` - for reminders and recurring tasks (e.g. a periodic homelab status digest).
+- `loop` - for iterative working sessions (e.g. building the IaC playbook by playbook).
+- `code-review` / `security-review` - **always use before applying** Terraform/Ansible changes that touch real infrastructure. This is the most important safety net when adopting IaC early.
+- `verify` - confirm a service genuinely works end to end (not just that `terraform apply` or `ansible-playbook` exited without error).
 
-### A instalar/configurar
-- **Slack (oficial)**: plugin `slackapi/slack-skills-plugin` (Claude Code + Slack MCP Server, publicado no marketplace oficial). Autenticação via OAuth ao workspace. Dá a Claude capacidade de ler/escrever no Slack diretamente - útil para complementar os alertas automáticos com um resumo em linguagem natural, se quiseres.
-- **Terraform/OpenTofu (oficial, HashiCorp)**: "HashiCorp Agent Skills" - traz conhecimento oficial de Terraform/Packer, validação de módulos e inspeção de state. Faz sentido dado que vamos adotar IaC já.
-- **Obsidian MCP (via plugin dentro do próprio Obsidian)**: a partir da v4.0 do plugin **Local REST API**, o próprio plugin já expõe um servidor MCP embutido (deixou de precisar de um processo Python/uvx à parte) - setup ~5 minutos. Dá a Claude operações "vault-aware" (backlinks, tags, daily notes, pesquisa pelo grafo), além de simples edição de ficheiros. Opcional para já - o vault vai ser a própria pasta do repo, por isso Claude Code já consegue ler/editar os `.md` diretamente sem isto; vale a pena ligar quando o vault crescer e quiseres tirar partido de tags/backlinks.
+### To install or configure
+- **Slack (official)**: the `slackapi/slack-skills-plugin` plugin (Claude Code + Slack MCP Server, published on the official marketplace). Authentication via OAuth to the workspace. Lets Claude read and write in Slack directly - useful to complement the automated alerts with a natural-language summary, if wanted.
+- **Terraform/OpenTofu (official, HashiCorp)**: "HashiCorp Agent Skills" - brings official Terraform/Packer knowledge, module validation and state inspection. Makes sense given IaC is being adopted now.
+- **Obsidian MCP (through a plugin inside Obsidian itself)**: since v4.0 of the **Local REST API** plugin, the plugin exposes a built-in MCP server (no separate Python/uvx process needed any more) - roughly a five-minute setup. Gives Claude vault-aware operations (backlinks, tags, daily notes, graph search) beyond plain file editing. Optional for now: the vault is the repo folder itself, so Claude Code can already read and edit the `.md` files directly without it. Worth enabling once the vault grows and tags/backlinks start earning their keep.
 
-### Nota sobre "connectors"
-Tentei procurar conectores prontos (Slack, Obsidian) através do sistema de "connectors" do Claude - esse sistema não está disponível/populado neste ambiente (Claude Code CLI). A integração correta aqui é configurar os servidores MCP manualmente (`claude mcp add ...`), não pelos connectors do claude.ai.
+### A note on "connectors"
+Ready-made connectors (Slack, Obsidian) were searched for through Claude's "connectors" system - that system is not available or populated in this environment (Claude Code CLI). The correct integration here is configuring MCP servers manually (`claude mcp add ...`), not through the claude.ai connectors.
 
-### Encontrado mas não recomendado instalar às cegas
-- `jmagar/claude-homelab` - marketplace de agentes/skills específico para gestão de homelabs (setup, health checks, dashboard de estado). É um projeto de terceiros - se quiseres experimentar, ler o código primeiro (nomeadamente o que faz com credenciais) antes de dar acesso a ferramentas do teu homelab.
+### Found but not recommended for blind installation
+- `jmagar/claude-homelab` - a marketplace of agents and skills specific to homelab management (setup, health checks, status dashboard). It is a third-party project: if you want to try it, read the code first, particularly what it does with credentials, before granting it access to your homelab's tools.
 
-## 2. Documentação - Obsidian
+## 2. Documentation - Obsidian
 
-- **O vault é a própria pasta do repositório** `C:\Users\ruigr\Documents\GitHub\homelab`. Obsidian funciona sobre qualquer pasta de Markdown - não é preciso converter nada, os `.md` já existentes funcionam.
-- **Sincronização grátis via Git**: instalar o plugin comunitário **obsidian-git** dentro do Obsidian (Settings → Community plugins). Dá um botão de commit/push/pull e pode fazer auto-backup agendado. Assim sincronizas entre dispositivos sem pagar o Obsidian Sync - só precisas de ter o repo clonado em cada máquina/telemóvel (no telemóvel, via app Git ou o próprio Obsidian mobile + Working Copy/Termux, conforme o que já usas).
-- **Estrutura recomendada** (evolução do que já existe, não uma reescrita):
-  - `Homelab.md` (nota raiz / MOC - *Map of Content*) - substitui/expande o README como ponto de entrada no Obsidian, com links para as notas abaixo.
-  - `docs/services/` - uma nota por serviço (Proxmox, TrueNAS, Jellyfin, WireGuard, Uptime Kuma, Healthchecks...), cada uma com: estado atual, configuração-chave, link para o runbook.
-  - `docs/runbooks/` - procedimentos de recuperação por serviço ("se X falhar, fazer Y"). Importante para disaster recovery - documentar não é só `PROJECT_CONTEXT.md`, é também "como restauro isto às 2h da manhã".
-  - `docs/PROJECT_CONTEXT.md` mantém-se como está - o histórico/decisões recentes já segue o padrão de um log de decisões (bom hábito, continuar).
-  - `docs/CHECKLIST.md` (criado 22/07/2026) - estado feito/pendente de todas as tarefas, por fase; o `PROJECT_CONTEXT.md` deixou de duplicar isto.
-  - `docs/NETWORK.md` (criado 29/07/2026) - diagrama e referência rápida da arquitetura de rede (VLANs, NICs, regras), à parte do log de decisões.
-  - Tags sugeridas: `#pendente`, `#decisão`, `#risco`, `#servico` - para navegares pelo grafo do Obsidian em vez de só pelas pastas.
+- **The vault is the repository folder itself.** Obsidian works over any folder of Markdown - nothing needs converting, the existing `.md` files work as they are.
+- **Free synchronisation over Git**: install the community plugin **obsidian-git** inside Obsidian (Settings → Community plugins). It gives you a commit/push/pull button and can run scheduled auto-backups. That syncs between devices without paying for Obsidian Sync - you just need the repo cloned on each machine or phone. Note (11/08/2026): `.obsidian/plugins/` is now gitignored, so on a new device the plugin has to be installed by hand once before the sync works.
+- **Recommended structure** (an evolution of what already exists, not a rewrite):
+  - `Homelab.md` (root note / MOC - *Map of Content*) - replaces and expands the README as the entry point inside Obsidian, linking to the notes below.
+  - `docs/services/` - one note per service (Proxmox, TrueNAS, Jellyfin, WireGuard, Uptime Kuma, Healthchecks...), each with: current state, key configuration, link to the runbook.
+  - `docs/runbooks/` - recovery procedures per service ("if X fails, do Y"). Important for disaster recovery - documenting is not only `PROJECT_CONTEXT.md`, it is also "how do I restore this at 2am".
+  - `docs/PROJECT_CONTEXT.md` stays as it is - the history and recent decisions already follow the shape of a decision log, which is a good habit worth keeping.
+  - `docs/CHECKLIST.md` (created 22/07/2026) - done/pending status of every task, by phase; `PROJECT_CONTEXT.md` stopped duplicating this.
+  - `docs/NETWORK.md` (created 29/07/2026) - diagram and quick reference for the network architecture (VLANs, NICs, rules), separate from the decision log.
+  - Suggested tags: `#pending`, `#decision`, `#risk`, `#service` - so you can navigate through Obsidian's graph rather than only through folders.
 
-## 3. Monitorização e alertas - Slack
+## 3. Monitoring and alerting - Slack
 
-Três níveis complementares, todos self-hosted no próprio homelab, todos a alertar para um canal Slack dedicado (ex.: `#homelab-alerts`) via **Incoming Webhook** do Slack (mais simples que OAuth só para alertas de saída):
+Three complementary levels, all self-hosted in the homelab itself, all alerting into a dedicated Slack channel (e.g. `#homelab-alerts`) through a Slack **Incoming Webhook** (simpler than OAuth for outbound alerts only):
 
-1. **Uptime Kuma** - monitorização "está no ar?" em tempo real (HTTP/TCP/ping/Docker/SSL) para cada serviço (TrueNAS, Jellyfin, WireGuard, router...). Suporta Slack nativamente (um dos 90+ canais de notificação). É o standard de facto para homelabs.
-2. **Healthchecks.io (self-hosted)** - "dead man's switch" para jobs agendados (backups, scrub do ZFS, runs do Ansible). Um script termina com um `curl` a um URL único; se o ping falhar/não chegar a horas, alerta. Isto apanha falhas silenciosas que o Uptime Kuma não vê (ex.: "o backup parou de correr há 3 semanas mas o servidor está no ar").
-3. **Prometheus + Grafana** - antecipado para a fase inicial (deixou de ser "mais tarde, não urgente"). Justificação: os dois níveis acima respondem a "está no ar?", mas não a "porque é que está lento" nem "isto vem a degradar-se há semanas". Num host com RAM já em sobrecompromisso (ver `PROJECT_CONTEXT.md` §Riscos), saber a tendência de consumo vale mais do que um alerta binário. Correr dentro do cluster k3s (secção 4) via `kube-prometheus-stack` (Helm chart) é praticamente imediato - node/cAdvisor exporters + dashboards prontos, sem trabalho de configuração manual significativo, e dá gráficos de CPU/RAM/disco/rede por VM e por pod.
+1. **Uptime Kuma** - real-time "is it up?" monitoring (HTTP/TCP/ping/Docker/SSL) for each service (TrueNAS, Jellyfin, WireGuard, router...). Supports Slack natively (one of its 90+ notification channels). It is the de facto standard for homelabs.
+2. **Healthchecks.io (self-hosted)** - a dead man's switch for scheduled jobs (backups, ZFS scrub, Ansible runs). A script finishes with a `curl` to a unique URL; if the ping fails or arrives late, it alerts. This catches the silent failures Uptime Kuma cannot see (e.g. "the backup stopped running three weeks ago but the server is up").
+3. **Prometheus + Grafana** - brought forward into the initial phase (it used to be "later, not urgent"). Rationale: the two levels above answer "is it up?", but not "why is it slow" nor "this has been degrading for weeks". On a host whose RAM is already overcommitted (see `PROJECT_CONTEXT.md` §Risks), knowing the consumption trend is worth more than a binary alert. Running it inside the k3s cluster (section 4) through `kube-prometheus-stack` (a Helm chart) is close to immediate - node/cAdvisor exporters plus ready-made dashboards, with no significant manual configuration, giving CPU/RAM/disk/network graphs per VM and per pod.
 
-Complemento opcional via Claude: uma tarefa agendada (skill `schedule`) que corre, por ex., uma vez por dia, consulta a API do Uptime Kuma + as pendências do `PROJECT_CONTEXT.md`, e posta um resumo em linguagem natural no mesmo canal Slack. Isto é um "relatório", não o alerta crítico - o alerta em si (passo 1 e 2) tem de continuar a não depender de nenhuma sessão de LLM a correr.
+Optional complement through Claude: a scheduled task (the `schedule` skill) running, say, once a day, querying the Uptime Kuma API plus the open items in `PROJECT_CONTEXT.md`, and posting a natural-language summary into the same Slack channel. That is a *report*, not the critical alert - the alerting itself (steps 1 and 2) must keep working without depending on any LLM session running.
 
 ## 4. Infrastructure as Code
 
-Stack escolhida: **OpenTofu** com o provider **`bpg/proxmox`** (o mais ativamente mantido) para provisionar VMs/LXCs; **Ansible** para as configurar por dentro (pacotes, Docker, k3s, TrueNAS); **k3s** (Kubernetes leve) para correr os serviços de aplicação em vez de um LXC por serviço.
+Chosen stack: **OpenTofu** with the **`bpg/proxmox`** provider (the most actively maintained) to provision VMs and LXCs; **Ansible** to configure them from the inside (packages, Docker, k3s, TrueNAS); **k3s** (lightweight Kubernetes) to run the application services instead of one LXC per service.
 
-### Porquê OpenTofu e não Terraform
+### Why OpenTofu and not Terraform
 
-Usamos OpenTofu em vez do Terraform "oficial" da HashiCorp por três razões, mas a competência que se aprende é a mesma:
+OpenTofu is used instead of HashiCorp's official Terraform for two reasons, though the skill being learned is the same:
 
-- **Licenciamento**: em 2023 a HashiCorp mudou a licença do Terraform de MPL (open-source) para BSL (Business Source License), que restringe usos comerciais que "compitam" com produtos HashiCorp. A Linux Foundation, com o apoio de dezenas de empresas (AWS, Oracle, Harness, Spacelift...), fez fork do último código MPL e criou o **OpenTofu** - mantém-se 100% open-source, sob governação neutra (não de uma única empresa).
-- **Compatibilidade total**: OpenTofu usa a mesma linguagem (HCL), o mesmo formato de state e os mesmos providers do registry do Terraform (incluindo o `bpg/proxmox`). Um ficheiro `.tf` escrito para OpenTofu corre em Terraform e vice-versa - não há nada de "diferente" a aprender.
-- **Sem risco de licença num repo pessoal**: mesmo sendo um projeto pessoal, evita qualquer ambiguidade futura se este código vier a ser reutilizado, mostrado num portefólio público, ou adaptado para uso profissional.
+- **Licensing**: in 2023 HashiCorp changed Terraform's licence from MPL (open source) to BSL (Business Source License), which restricts commercial uses that "compete" with HashiCorp products. The Linux Foundation, backed by dozens of companies (AWS, Oracle, Harness, Spacelift...), forked the last MPL code and created **OpenTofu** - which stays fully open source, under neutral governance rather than a single company's.
+- **Full compatibility**: OpenTofu uses the same language (HCL), the same state format and the same providers from the Terraform registry (including `bpg/proxmox`). A `.tf` file written for OpenTofu runs on Terraform and vice versa - there is nothing "different" to learn. In practice `tofu` is just a different binary from `terraform`, with the same syntax, so the experience of writing HCL, managing state, providers and modules transfers one to one.
 
-**Para o CV/portefólio**: a estratégia de carreira pede "Terraform" como skill (é o nome que recrutadores procuram) - no CV/LinkedIn é correto e recomendado escrever **"Terraform (via OpenTofu)"** ou "Infrastructure as Code com Terraform/OpenTofu (HCL)", já que a experiência prática - escrever HCL, gerir state, providers, módulos - transfere 1:1. O comando `tofu` é apenas um binário diferente do `terraform`, com a mesma sintaxe.
+### Kubernetes (k3s) instead of one LXC per service
 
-### Kubernetes (k3s) em vez de LXCs por serviço
+Rather than one Ansible-configured LXC/VM per service (`jellyfin`, `nextcloud`, `monitoring`...), the application services run as workloads on a **k3s** cluster - a lightweight Kubernetes distribution built for exactly this scenario (single node or a few nodes, modest hardware). TrueNAS stays a dedicated VM: running it bare, outside the cluster, makes sense because of the disk passthrough.
 
-Em vez de um LXC/VM Ansible por serviço (`jellyfin`, `nextcloud`, `monitoring`...), os serviços de aplicação passam a correr como workloads num cluster **k3s** - distribuição de Kubernetes leve, feita para exatamente este cenário (single-node ou poucos nós, hardware modesto). TrueNAS continua como VM dedicada (faz sentido correr "bare", fora do cluster, por causa do passthrough de disco).
+- **Provisioning**: OpenTofu creates the base VMs (e.g. 1-3 k3s nodes); Ansible installs k3s on them (a `k3s-server`/`k3s-agent` role, or the community `k3s-io/k3s-ansible` role).
+- **Services**: each service (Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana) becomes a manifest or Helm chart under `infra/kubernetes/`, applied with `kubectl apply` or `helm install` - no longer its own Ansible role per service.
+- **Why now and not later**: adopting Kubernetes after five services are already running in hand-built LXCs means migrating all of them, and every migration is a chance to break something that worked. Getting in early, while the cost of redoing things is still low, is cheaper than getting in late. The homelab is also the right place to get it wrong: a bad configuration here carries no production cost.
 
-- **Provisionamento**: OpenTofu cria as VMs base (ex.: 1–3 nós k3s); Ansible instala o k3s nelas (role `k3s-server`/`k3s-agent`, ou o role comunitário `k3s-io/k3s-ansible`).
-- **Serviços**: cada serviço (Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana) passa a ser um manifest/Helm chart em `infra/kubernetes/`, aplicado com `kubectl apply` ou `helm install` - não mais um role Ansible próprio por serviço.
-- **Porquê agora e não mais tarde**: adotar Kubernetes depois de ter cinco serviços a correr em LXCs à mão significa migrá-los todos, e cada migração é uma oportunidade de partir algo que funcionava. Entrar cedo, enquanto o custo de refazer ainda é baixo, é mais barato do que entrar tarde. O homelab é também o sítio certo para errar: uma configuração má aqui não tem custo de produção.
-
-Estrutura proposta no repo:
+Proposed repo structure:
 ```
 infra/
-├── opentofu/         # provider config + definições de VMs (incl. nós k3s)
+├── opentofu/         # provider config + VM definitions (incl. k3s nodes)
 │   └── ...
 ├── ansible/
 │   ├── inventory/
 │   └── roles/        # truenas, k3s-server, k3s-agent, base...
 ├── kubernetes/
-│   ├── truenas-storage/   # StorageClass / PV ligados ao TrueNAS (NFS/iSCSI)
-│   ├── jellyfin/          # manifests ou values.yaml de Helm chart
+│   ├── truenas-storage/   # StorageClass / PVs bound to TrueNAS (NFS/iSCSI)
+│   ├── jellyfin/          # manifests or Helm chart values.yaml
 │   ├── nextcloud/
 │   └── monitoring/        # kube-prometheus-stack (Prometheus+Grafana) + Uptime Kuma
-└── secrets/           # nunca commitado em texto plano (ver abaixo)
+└── secrets/           # never committed in plain text (see below)
 ```
 
-**Segredos**: para já, começar simples - `.gitignore` a cobrir `*.tfvars`, `secrets/`, `*vault.yml`, `*values-secret.yaml`, e manter só ficheiros `.example` versionados como template. Evoluir para SOPS + age (encriptar ficheiros de segredos e podê-los commitar em cifra) quando o volume justificar - não vale a pena a complexidade extra logo no primeiro playbook.
+**Secrets**: start simple - a `.gitignore` covering `*.tfvars`, `secrets/`, `*vault.yml`, `*values-secret.yaml`, keeping only `.example` files versioned as templates. Move to SOPS + age (encrypting secret files so they can be committed as ciphertext) when the volume justifies it - the extra complexity is not worth it on the first playbook.
 
-**Proxmox**: criar um utilizador/role dedicado com permissões mínimas e um API token próprio para o OpenTofu usar - nunca `root@pam`.
+**Proxmox**: create a dedicated user and role with minimum permissions, plus its own API token for OpenTofu to use - never `root@pam`.
 
-**Disciplina**: toda a alteração de infraestrutura passa por `code-review`/`security-review` antes de `tofu apply` / `ansible-playbook` / `kubectl apply`, e fica registada no histórico do `PROJECT_CONTEXT.md`.
+**Discipline**: every infrastructure change goes through `code-review`/`security-review` before `tofu apply` / `ansible-playbook` / `kubectl apply`, and gets recorded in the `PROJECT_CONTEXT.md` history.
 
-### CI: validação automática do IaC (GitHub Actions)
+### CI: automatic IaC validation (GitHub Actions)
 
-Antes de qualquer `apply` real, um workflow de GitHub Actions corre em cada PR/push que toque `infra/`:
-- `tofu fmt -check` + `tofu validate` (e `tofu plan` só de leitura, sem credenciais de apply, se viável correr contra um workspace de plan).
-- `ansible-lint` sobre os playbooks/roles.
-- `kubeval`/`kubeconform` ou `helm lint` sobre os manifests em `infra/kubernetes/`.
+Before any real `apply`, a GitHub Actions workflow runs on every PR or push touching `infra/`:
+- `tofu fmt -check` + `tofu validate` (and a read-only `tofu plan`, without apply credentials, if it can run against a plan workspace).
+- `ansible-lint` over the playbooks and roles.
+- `kubeval`/`kubeconform` or `helm lint` over the manifests in `infra/kubernetes/`.
 
-Isto não substitui `code-review`/`security-review` (continuam obrigatórios antes de aplicar), mas apanha erros mecânicos (sintaxe, formatação, más práticas óbvias) automaticamente e sem custo. A diferença face a CI sobre código de aplicação é o custo do erro: um `tofu apply` mal formado não falha um teste, destrói uma VM.
+This does not replace `code-review`/`security-review` (still mandatory before applying), but it catches mechanical errors (syntax, formatting, obvious bad practice) automatically and for free. The difference from CI over application code is the cost of a mistake: a malformed `tofu apply` does not fail a test, it destroys a VM.
 
-**Primeira tarefa de IaC** (dado o estado atual - só Proxmox instalado): provisionar a VM TrueNAS via OpenTofu, depois provisionar 1 VM e instalar k3s nela via Ansible (cluster de nó único para começar) - codificando o que já estava planeado manualmente na Fase 1, mas já com Kubernetes como destino dos serviços.
+**First IaC task** (given the current state): provision the TrueNAS VM through OpenTofu, then provision one VM and install k3s on it through Ansible (a single-node cluster to begin with) - codifying what was already planned manually in Phase 1, but with Kubernetes as the destination for the services.
 
-## 5. Sequência de execução recomendada
+## 5. Recommended execution order
 
-1. Obsidian: abrir o repo homelab como vault, instalar `obsidian-git`, confirmar sync a funcionar entre dispositivos.
-2. Slack: criar canal `#homelab-alerts` e um Incoming Webhook (feito pelo Rui, requer acesso ao workspace).
-3. IaC (scaffold): `infra/opentofu` + `infra/ansible` + `infra/kubernetes`, token de API dedicado no Proxmox, primeira VM (TrueNAS) provisionada por código.
-4. CI: workflow de GitHub Actions a validar `infra/` (`tofu fmt`/`validate`, `ansible-lint`, `helm lint`) antes mesmo do primeiro `apply` real - assim já nasce com a rede de segurança.
-5. Kubernetes: provisionar 1 VM via OpenTofu + instalar k3s via Ansible (cluster de nó único).
-6. Monitorização: `kube-prometheus-stack` (Prometheus+Grafana) e Uptime Kuma como workloads no k3s, ligados ao webhook do Slack; depois Healthchecks.io self-hosted para os jobs de backup.
-7. Serviços de aplicação: migrar Jellyfin/Nextcloud para manifests/Helm no k3s, com storage a apontar para o TrueNAS.
-8. Claude Code: instalar o plugin Slack oficial e as skills Terraform da HashiCorp; opcionalmente o MCP do Obsidian mais tarde.
+1. Obsidian: open the homelab repo as a vault, install `obsidian-git`, confirm sync works between devices.
+2. Slack: create the `#homelab-alerts` channel and an Incoming Webhook (requires workspace access).
+3. IaC (scaffold): `infra/opentofu` + `infra/ansible` + `infra/kubernetes`, a dedicated API token on Proxmox, first VM (TrueNAS) provisioned from code.
+4. CI: a GitHub Actions workflow validating `infra/` (`tofu fmt`/`validate`, `ansible-lint`, `helm lint`) before even the first real `apply` - so it is born with the safety net.
+5. Kubernetes: provision one VM through OpenTofu + install k3s through Ansible (single-node cluster).
+6. Monitoring: `kube-prometheus-stack` (Prometheus+Grafana) and Uptime Kuma as workloads on k3s, wired to the Slack webhook; then self-hosted Healthchecks.io for the backup jobs.
+7. Application services: migrate Jellyfin and Nextcloud to manifests/Helm on k3s, with storage pointing at TrueNAS.
+8. Claude Code: install the official Slack plugin and HashiCorp's Terraform skills; optionally the Obsidian MCP later on.
 
-## 6. Notas de segurança
-- Nunca commitar tokens/API keys/passwords em texto - nem nos `.tfvars`, nem nos playbooks, nem nas notas do Obsidian se o vault for o repo público... **este repo é privado**, mas mesmo assim, tratar segredos como se pudesse ficar público um dia.
-- Webhooks do Slack são, na prática, um "bearer token" - tratar o URL como segredo (não colar em notas partilhadas).
-- **Referência de acessos e segredos (criado 29/07/2026)**: `docs/SECRETS.md` guarda os acessos administrativos, tokens e caminhos de todos os serviços - existe só localmente (`.gitignore`), nunca é commitado. O modelo sem valores reais, `docs/SECRETS.example.md`, esse sim está no repo, e documenta a estrutura. Para passwords realmente importantes (Proxmox, router, firewall), o ideal a prazo é um gestor de passwords - o `SECRETS.md` é para referência rápida, não o cofre principal.
+## 6. Security notes
+- Never commit tokens, API keys or passwords in plain text - not in `.tfvars`, not in playbooks, not in Obsidian notes. **This repository is public since 11/08/2026**, which turns what was already good practice into a hard requirement.
+- Slack webhooks are, in practice, a bearer token - treat the URL as a secret (do not paste it into shared notes).
+- **Access and secrets reference (created 29/07/2026)**: `docs/SECRETS.md` holds the administrative access, tokens and paths for every service - it exists only locally (`.gitignore`) and has never been committed. The template with no real values, `docs/SECRETS.example.md`, is the one in the repo, documenting the structure. For genuinely important passwords (Proxmox, router, firewall), a password manager is the right long-term home - `SECRETS.md` is for quick reference, not the main vault.
+
+## History
+
+- 11/08/2026: translated to English. Two things were corrected in passing: a note claiming the repository is private (it went public on 11/08/2026), and a paragraph framing OpenTofu in terms of what recruiters look for, which was left over from an earlier cleanup and did not belong in a technical document.
