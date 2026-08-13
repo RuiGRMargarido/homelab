@@ -4,7 +4,7 @@ A self-hosted infrastructure project built on a single refurbished mini PC: a VL
 
 Everything here is documented as it was actually built, including the parts that broke. The incident write-ups are the point, not an afterthought.
 
-> Documentation is written in Portuguese. This README is the English entry point.
+> Documentation is being translated to English. `CHECKLIST.md` and `PROJECT_CONTEXT.md` are still in Portuguese; everything else has been converted.
 
 ## Stack
 
