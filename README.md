@@ -4,8 +4,6 @@ A self-hosted infrastructure project built on a single refurbished mini PC: a VL
 
 Everything here is documented as it was actually built, including the parts that broke. The incident write-ups are the point, not an afterthought.
 
-> Documentation is being translated to English. `CHECKLIST.md` and `PROJECT_CONTEXT.md` are still in Portuguese; everything else has been converted.
-
 ## Stack
 
 | Layer | Technology |
@@ -16,6 +14,8 @@ Everything here is documented as it was actually built, including the parts that
 | Storage | TrueNAS SCALE, ZFS, NFS + SMB exports |
 | VPN | WireGuard |
 | Services | Nextcloud, Jellyfin, Caddy (all Docker Compose inside LXC) |
+| Media automation | Sonarr, Radarr, Prowlarr, qBittorrent, Jellyseerr - download traffic isolated behind gluetun |
+| Hardware acceleration | Intel QuickSync passed through to an unprivileged LXC for Jellyfin transcoding |
 | Backups | `rsync` to external SSD, cron-scheduled, restore validated |
 | Planned | OpenTofu, Ansible, k3s, Prometheus + Grafana, GitHub Actions CI |
 
@@ -43,6 +43,7 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 | 0. Hardware | Done, except a pending RAM upgrade to 32GB |
 | 1. Base services | **Done** and validated (TrueNAS, WireGuard, Caddy, Nextcloud, Jellyfin, backups) |
 | 2. VLANs and firewall | **In progress** (network built; WireGuard and TrueNAS migrated, three services to go) |
+| 2b. Media automation | **Done** (hardware transcoding, *arr stack behind a VPN kill-switch) |
 | 3. Storage / RAID | Not started |
 | 4. IaC and Kubernetes | Not started |
 | 5. Monitoring and alerting | Not started |
@@ -64,13 +65,17 @@ Full task-level breakdown in [CHECKLIST.md](docs/CHECKLIST.md).
 
 These are the parts worth reading if you want to see how problems were approached, not just what was installed.
 
-**[VPN completely unreachable after the VLAN migration](docs/CHECKLIST.md#histórico)** - symptom was a WireGuard client reporting a connection with zero bytes received. Diagnosis eliminated layers from the inside out: inter-zone firewall rules, then the container's own iptables (packet counters stayed at zero through a real VPN reconnect, proving handshake packets never even reached the DMZ), then the NAT rule, then DNS. Root cause was a port-forward rule on the home router still pointing at the service's pre-migration IP. The lesson recorded was about verifying persisted configuration rather than trusting an earlier edit.
+**[The hypervisor locked up by a dead NFS mount](docs/CHECKLIST.md#history)** - a routine reboot ended with PID 1 itself in uninterruptible sleep, `systemctl` returning `Transport endpoint is not connected` and the cluster filesystem dead. The host mounts NFS from a VM it hosts itself, so shutting down that VM before unmounting deadlocked the shutdown, and `hard` mounts meant the unmount could never fail. The fix replaced boot-time mounts with `x-systemd.automount` plus `soft`, and revealed that no guest had `onboot` set - which retroactively explained several earlier "the services stopped working" reports. The write-up also records a fix I got wrong first: an ordering directive that created a circular dependency between the mount and the guests waiting on it.
 
-**[NFS permissions through two layers of UID translation](docs/CHECKLIST.md#histórico)** - Nextcloud failed with `chown: Operation not permitted` against an NFS export. The cause was that "root" inside an unprivileged LXC running Docker never arrives at the NFS server as real UID 0, so `Maproot` does not apply and `Mapall` is required. The finding was applied preemptively to the next service, which worked first time.
+**[Load average of 274 with every disk idle](docs/CHECKLIST.md#history)** - I/O pressure pinned at 98% for two hours while SMART was clean, the disk sat at 0% utilisation and swap was not moving. The break came from separating two layers: the NFS port accepted TCP connections while `showmount` hung, because an open port proves the kernel is listening, not that the RPC service is answering. Stopping the storage VM dropped the load from 274 to 4.6 in seconds. Three hypotheses were eliminated by measurement before the right one, and the earlier `soft` mount change is what made recovery possible instead of repeating the lockup above.
 
-**[Backup silently aborting on exFAT](docs/CHECKLIST.md#histórico)** - `rsync -a` failed the entire transfer because exFAT cannot store Unix ownership, and `-a` always tries to preserve it. Resolved with explicit flags matched to the filesystem's actual capabilities.
+**[VPN completely unreachable after the VLAN migration](docs/CHECKLIST.md#history)** - symptom was a WireGuard client reporting a connection with zero bytes received. Diagnosis eliminated layers from the inside out: inter-zone firewall rules, then the container's own iptables (packet counters stayed at zero through a real VPN reconnect, proving handshake packets never even reached the DMZ), then the NAT rule, then DNS. Root cause was a port-forward rule on the home router still pointing at the service's pre-migration IP. The lesson recorded was about verifying persisted configuration rather than trusting an earlier edit.
 
-**[DHCP leases expiring without renewal](docs/CHECKLIST.md#histórico)** - containers lost IPv4 connectivity after hours of uptime. Two rounds of fixes treated the symptom before the actual cause was identified, leading to a project-wide move to static addressing.
+**[NFS permissions through two layers of UID translation](docs/CHECKLIST.md#history)** - Nextcloud failed with `chown: Operation not permitted` against an NFS export. The cause was that "root" inside an unprivileged LXC running Docker never arrives at the NFS server as real UID 0, so `Maproot` does not apply and `Mapall` is required. The finding was applied preemptively to the next service, which worked first time.
+
+**[Backup silently aborting on exFAT](docs/CHECKLIST.md#history)** - `rsync -a` failed the entire transfer because exFAT cannot store Unix ownership, and `-a` always tries to preserve it. Resolved with explicit flags matched to the filesystem's actual capabilities.
+
+**[DHCP leases expiring without renewal](docs/CHECKLIST.md#history)** - containers lost IPv4 connectivity after hours of uptime. Two rounds of fixes treated the symptom before the actual cause was identified, leading to a project-wide move to static addressing.
 
 ## Documentation
 
