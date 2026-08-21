@@ -18,3 +18,9 @@ infra/secrets/
 # Worktrees e estado local do Claude Code
 .claude/
 imagens/
+
+# Backups de configuracao da firewall - contem hashes de passwords,
+# certificados e a politica de rede completa. Nunca commitar.
+config-*.xml
+*opnsense*.xml
+backups/
