@@ -44,10 +44,22 @@ flowchart TB
         JFC["Docker<br/>/media"]:::docker
     end
 
+    LOCAL[("256GB SSD local<br/>/var/lib/vz/downloads")]:::disco
+
+    subgraph L107["LXC 107 · arr stack<br/>Sonarr · Radarr · qBittorrent"]
+        ARD["/data"]:::lxc
+        ARW["/downloads"]:::lxc
+        ARC["Docker<br/>/data · /downloads"]:::docker
+    end
+
     MN -- "bind mount · mp0" --> NCD
     NCD --> NCC
     MM -- "bind mount · mp0" --> JFD
     JFD --> JFC
+    MM -- "bind mount · mp0" --> ARD
+    LOCAL -- "bind mount · mp1" --> ARW
+    ARD --> ARC
+    ARW --> ARC
 
     SSD[("1TB SSD · exFAT<br/>/mnt/pve/backup-ssd")]:::backup
     MN -- "rsync · 04:00" --> SSD
@@ -76,6 +88,26 @@ flowchart TB
 | 🟧 | Path inside the Docker container |
 | 🟫 | Backup destination |
 
+## The same folder under four names
+
+The single most error-prone thing about this architecture: one folder is reached by a different path at every layer, and a path that is correct in one layer produces "No such file or directory" in the next. Worse, the *arr stack and Jellyfin mount **the same media library under different names**, so a recipe that works in one container fails in the other.
+
+| What | TrueNAS dataset | Proxmox host | Inside the LXC | Inside the container |
+|---|---|---|---|---|
+| Media library, as Jellyfin sees it | `tank_test/media` | `/mnt/pve/media-nfs` | 105: `/mnt/media-data` | `/media` |
+| Media library, as Sonarr/Radarr see it | `tank_test/media` | `/mnt/pve/media-nfs` | 107: `/data` | `/data` |
+| Downloads (local SSD, not TrueNAS) | *(none)* | `/var/lib/vz/downloads` | 107: `/downloads` | `/downloads` |
+| Nextcloud files | `tank_test/nextcloud` | `/mnt/pve/nextcloud-nfs` | 104: `/mnt/nextcloud-data` | `/var/www/html/data` |
+| Documents and personal videos | `tank_test/shares` | `/mnt/pve/shares-nfs` | *(not mounted)* | *(not mounted)* |
+| Backup destination | *(none)* | `/mnt/pve/backup-ssd` | *(not mounted)* | *(not mounted)* |
+
+Reading it in practice: a movie sitting at `/media/Movies/X.mkv` for Jellyfin is `/data/Movies/X.mkv` for Radarr, `/mnt/pve/media-nfs/Movies/X.mkv` on the host, and `/mnt/tank_test/media/Movies/X.mkv` on TrueNAS. Four names, one file.
+
+Two rules that follow from the table:
+
+- **Before running a command, decide which layer you are standing in.** `pct exec 107 -- ...` runs in the LXC; `docker exec sonarr ...` runs one layer deeper; a bare shell on the OptiPlex is the host. Shell globs are the classic trap: they expand where you type them, not where the command runs.
+- **A local-disk bind mount needs `chown -R 100000:100000` on the host; an NFS one does not.** Unprivileged containers shift UIDs by 100000, and on the NFS side TrueNAS's `Mapall` already absorbs that translation. The downloads folder is the only local bind mount here, and it is exactly the one that failed with "Permission denied" when it was created.
+
 ## Why the chain is this long
 
 Each layer exists for a reason that is not obvious until you try to skip it:
@@ -96,6 +128,8 @@ Since 11/08/2026 there is a fifth consideration: TrueNAS lives in the Trusted zo
 | Nextcloud files | `nextcloud` dataset (TrueNAS) | **Yes**, daily |
 | `shares` (documents, personal videos) | `shares` dataset (TrueNAS) | **Yes**, daily |
 | Jellyfin media library | `media` dataset (TrueNAS) | **No** |
+| Downloads in progress and seeding | `/var/lib/vz/downloads`, Proxmox's local SSD | **No**, deliberately (transient) |
+| *arr configuration (Sonarr, Radarr, Prowlarr, qBittorrent) | Docker volumes on the LXC 107 disk | **No** |
 | Nextcloud database (MariaDB) | Docker volume on the LXC 104 disk | **No** |
 | Jellyfin config and cache | Docker volumes on the LXC 105 disk | **No** |
 | VM and LXC disks | Proxmox's local 256GB SSD | **No** |
@@ -180,3 +214,4 @@ Restore validated on 02/08/2026 at three levels (file listings, checksum, and ac
 
 - 06/08/2026: document created. The storage chain had only ever been described in fragments scattered across `CHECKLIST.md` (inside incident write-ups) and `SECRETS.md` (loose paths), with no overall view. Drawing it end to end made three backup gaps visible that were not recorded anywhere, the most serious being the Nextcloud database.
 - 11/08/2026: translated to English and brought up to date. The fstab options, the boot-dependency section and the manual recovery recipe all described a state that the fixes of 10/08 and the TrueNAS migration of 11/08 had made obsolete.
+- 12/08/2026: **added the *arr stack (LXC 107) and the path translation table**. The document drew the chain down to Jellyfin and Nextcloud but did not know LXC 107 existed, so the local-SSD downloads branch was missing entirely. Added the "same folder under four names" table after two path mix-ups in the same week: a host-side loop written with the container's path, and downloads looked for at `/downloads/complete` on a host where they live at `/var/lib/vz/downloads/complete`. The trap is not the number of layers, it is that Jellyfin and the *arr stack mount **the same** media library under **different** names.
