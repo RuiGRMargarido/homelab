@@ -8,9 +8,14 @@ Convention: mark `[x]` only when verified working, not when "applied without err
 
 - [x] Choose and buy the host (Dell OptiPlex 3060 Micro, i5-8500T/16GB/256GB SSD) - see [HARDWARE.md](HARDWARE.md)
 - [x] Install Proxmox VE on the host
-- [ ] Confirm the actual specifications on arrival (NVMe vs SATA SSD, 1x16GB vs 2x8GB RAM)
-- [ ] **Upgrade to 32GB RAM** - confirmed (29/07/2026) that only the original 16GB are present. It does not block Phase 1 (the base services fit in 16GB), but it is a prerequisite before adding VLANs, a dedicated firewall and k3s (see [PROJECT_CONTEXT.md §Risks](PROJECT_CONTEXT.md#risks-and-mitigations)). **Reinforced 12/08/2026**: the media automation stack pushed the host into swap.
-- [ ] Upgrade the SSD to 512GB/1TB (once storage gets tight)
+- [x] Confirm the storage layout - the OptiPlex does have **NVMe** (`nvme0n1`), carrying Proxmox's LVM (`pve-root`, 226GB); `sdb` is the 1TB pool disk in the USB dock, `sda` the backup SSD
+
+### Conditional upgrades (decided 24/08/2026: not scheduled)
+
+**These are options, not planned work.** No hardware is being bought for now, so nothing else in this document may treat them as a prerequisite. Each one is recorded with the trigger that would justify revisiting it.
+
+- [ ] **32GB RAM** - only the original 16GB are present. Trigger: wanting k3s (Phase 4b) or a second development VM running at the same time as everything else. Not a blocker today, as long as VM 100 stays powered off while TrueNAS holds 8GB
+- [ ] **512GB/1TB SSD** - trigger: `/var/lib/vz` going past roughly 80% again. It sits at 41% after the cleanup of 24/08, so there is real headroom
 
 ## Phase 1 - Base services (simple network, no VLANs yet)
 
@@ -87,14 +92,34 @@ Mitigations applied under pressure that need to be reviewed, plus the gaps the i
 - [x] Decide what to do about the **global IPv6 address** the firewall picked up on WAN via DHCPv6 - the whole segmentation is IPv4 and IPv6 does not use NAT, so this is a path no rule currently covers
 - [x] Verify large copies by comparing file sizes between source and destination - `cp` finishing without an error is no longer sufficient proof on this system
 
-## Phase 3 - Storage / RAID (now the real fix, not "later")
+## Phase 2d - Operating within the current hardware (decided 24/08/2026)
 
-The incident of 18-24/08 made this the highest-value item in the project. Everything in Phase 2c works around the same underlying fact: a single mechanical disk, in a USB dock, serving NFS to five clients, with no redundancy and no separate log device.
+**This is the phase that replaced Phase 3 as the active one.** No hardware is being bought for now, and that decision has a consequence that has to be stated rather than left implicit: **the mitigations from Phase 2c are no longer temporary, they are the operating configuration.** Their costs are accepted knowingly:
 
-- [ ] Buy 2x identical NAS HDDs (4TB or 6TB)
-- [ ] Migrate to a ZFS mirror (RAID1) on TrueNAS
-- [ ] Prefer SATA over the USB dock if the chassis allows it, or at minimum re-evaluate the dock under sustained write
-- [ ] Consider a small SSD as a **SLOG** (ZFS intent log) - that is what would let `sync=standard` return without the latency penalty that caused the write timeouts
+| Mitigation | Accepted cost |
+|---|---|
+| `sync=disabled` on `tank_test/media` | Up to ~5 seconds of acknowledged writes lost on a crash or power cut. Media only, never `nextcloud` |
+| Watchdog reset disabled | A stalled TrueNAS stays stalled until someone intervenes, instead of resetting itself. Deliberate: a reset mid-write truncates files silently, which is worse |
+| `timeo=600,retrans=5` | A stalled mount takes minutes to return an error instead of seconds. Deliberate: it is what stops files being truncated mid-write |
+
+The underlying fact does not change: a single mechanical disk, in a USB dock, serving NFS to five clients, with no redundancy and no separate log device. **What changes is the response to it: manage the load rather than grow the hardware.**
+
+- [ ] **Monitoring, brought forward from Phase 5** - the single highest-value item now. The failure of 18-24/08 ran for six days before being noticed, precisely because the `soft` mounts of 10/08 turned it into a silent, self-recovering degradation. Running with permanent mitigations on fragile storage without alerting is the actual risk. Costs almost nothing to run
+- [ ] Set `recordsize=1M` on `tank_test/media` - free, and better suited to large sequential files than the 128K default. Applies only to newly written data
+- [ ] Move the backup SSD to a **USB 3 port** - it is currently on USB 2 (480 Mbit/s), which halves backup speed for nothing. Confirmed with `lsusb -t` on 24/08
+- [ ] **Stagger the heavy jobs** so they do not overlap: the 04:00 backup, Jellyfin library scans, *arr imports and qBittorrent rechecks. Concurrency is what pushes this disk over the edge, not any single task
+- [ ] **Back up the Nextcloud database** - the files are covered daily but the database is not, and a restore without it hands back files with no Nextcloud around them. A `mysqldump` into the existing backup script. Free, and the most serious gap in the current backup design
+- [ ] Re-measure after the above, and only then decide whether `sync` can return to `standard`
+
+## Phase 3 - Storage / RAID (conditional: requires hardware, not scheduled)
+
+**Not planned work.** This remains the correct engineering answer to the incident of 18-24/08, and it is recorded here so that the reasoning is not lost, but nothing else in this document treats it as a prerequisite.
+
+**Triggers that would justify revisiting it**: the media library growing past the 1TB disk; a second failure that the Phase 2d measures do not contain; SMART starting to report reallocated sectors; or simply wanting the redundancy, given that today a single disk failure loses the entire pool.
+
+- [ ] 2x identical NAS HDDs (4TB or 6TB) in a ZFS mirror - the only thing that turns ZFS's checksums from *detection* into *repair*
+- [ ] Prefer SATA over the USB dock if the chassis allows it - the JMicron bridge was cleared under test, but it remains a link in the chain that server hardware would not have
+- [ ] A small SSD as a **SLOG** (ZFS intent log) - the specific fix that would let `sync=standard` return without the latency that caused the write timeouts
 
 ## Phase 4 - IaC and Kubernetes
 
@@ -104,19 +129,29 @@ See [TOOLING.md §4-5](TOOLING.md#4-infrastructure-as-code) for the rationale be
 - [ ] Create a dedicated user/role + API token on Proxmox for OpenTofu (never `root@pam`)
 - [ ] A GitHub Actions workflow validating `infra/` (`tofu fmt`/`validate`, `ansible-lint`, `helm lint`) - before the first real `apply`
 - [ ] Provision the TrueNAS VM through OpenTofu (replacing the manual step from Phase 1)
-- [ ] Provision one VM through OpenTofu + install k3s on it through Ansible (single-node cluster, Trusted zone)
 - [ ] Configure `.gitignore` for secrets (`*.tfvars`, `secrets/`, `*vault.yml`, `*values-secret.yaml`) + `.example` files
+- [ ] **Codify what already exists** rather than only what is planned: the VM 102 settings that are not defaults (`aio=threads,iothread=1`, `args`, memory), the `fstab` mount options, and the `onboot` order. Every one of them was set by hand under pressure and would be lost if a guest were recreated
+
+**Split from the above (24/08/2026)**: this part is viable on the current hardware. OpenTofu and Ansible run on the PC and cost the host almost nothing, so IaC is **not** blocked by the RAM decision. Only the k3s part below is.
+
+### Phase 4b - Kubernetes (conditional: needs the RAM upgrade)
+
+- [ ] Provision one VM through OpenTofu + install k3s on it through Ansible (single-node cluster, Trusted zone)
 - [ ] Migrate Jellyfin and Nextcloud to manifests/Helm on k3s, with storage pointing at TrueNAS
 
-## Phase 5 - Monitoring and alerting (Slack)
+## Phase 5 - Monitoring and alerting (brought forward 24/08/2026)
 
 See [TOOLING.md §3](TOOLING.md#3-monitoring-and-alerting---slack).
 
+**Repositioned twice by the decision of 24/08.** It was planned as a workload on k3s, which put it behind a RAM upgrade that is no longer scheduled, so it is **re-targeted at a small LXC with Docker** - Uptime Kuma needs a couple of hundred MB and nothing else. And it moved **up** in priority rather than down: running permanently mitigated workarounds on storage known to be fragile, with no alerting, is the largest remaining risk in the project.
+
 - [ ] Create the `#homelab-alerts` channel on Slack + an Incoming Webhook
-- [ ] Install Uptime Kuma (as a workload on k3s) and wire it to the webhook
-- [ ] Install `kube-prometheus-stack` (Prometheus + Grafana) on k3s
-- [ ] Install self-hosted Healthchecks.io for the scheduled jobs (backups, ZFS scrub, Ansible runs)
-- [ ] (Optional) A scheduled task with a daily natural-language summary in Slack
+- [ ] Install Uptime Kuma in its own LXC (not k3s) and wire it to the webhook
+- [ ] **The check that would have caught the 18-24/08 failure**: a periodic *real* read of an NFS mount (an `ls` with a timeout), not a port check. `showmount` answered throughout that week while `nfsd` was dead, and a TCP check on 2049 answered too - both would have reported green for six days
+- [ ] Alert on **host load average and I/O pressure** (`/proc/pressure/io`) - the cascade always announced itself the same way, with load climbing in a straight line for twenty minutes before anything became unusable
+- [ ] Alert on TrueNAS restarting unexpectedly - it rebooted itself six times on 24/08 and nobody noticed until the boot list was read by chance
+- [ ] Install self-hosted Healthchecks.io for the scheduled jobs (backups, ZFS scrub) - a dead man's switch catches the silent failures Uptime Kuma cannot see, such as a backup that stops running at all
+- [ ] (Later) Prometheus + Grafana for history and graphs - useful, but it is the alerting that has the value here, not the dashboards
 
 ## Phase 6 - Documentation (Obsidian)
 
