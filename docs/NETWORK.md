@@ -172,13 +172,13 @@ What is actually connected to what, with real cables and ports. The earlier diag
 | 2 | Home PC | VLAN 1 untagged |
 | 3 | OptiPlex, onboard NIC | **Trunk**: VLAN 1 untagged + 10/20/30 tagged |
 | *(to be confirmed)* | Powerline adapter, uplink to the router | VLAN 1 untagged |
-| 8 | *(free)* | - |
+| *(to be confirmed)* | OptiPlex, USB→RJ45 adapter (firewall WAN leg) | VLAN 1 untagged - **moved here 24/08/2026**, see below |
 | the rest | *(free)* | VLAN 1 untagged, by default |
 
 ### Two consequences of this topology
 
-- **Everything going to the internet passes over the same powerline**, both the home network (VLAN 1) and the homelab zones (the dedicated WAN leg). They are two logically distinct cables, but they share the same electrical wiring. That explains the ~6 MB/s measured over powerline transfers, against the ~100 MB/s obtained with the PC connected directly to the switch. It is also a single point of failure: without the powerline, neither the house nor the homelab has internet.
-- **Traffic between the PC and the homelab services never touches the powerline.** The PC (port 2) and the OptiPlex (port 3) are both on the switch, so reaching Nextcloud, Jellyfin or the TrueNAS shares is local switching at switch speed. That is why those transfers are fast even with a slow powerline.
+- **Everything going to the internet passes over the same powerline**, both the home network (VLAN 1) and the homelab zones (the dedicated WAN leg). They are two logically distinct cables, but they share the same electrical wiring. It is a single point of failure: without the powerline, neither the house nor the homelab has internet.
+- **Traffic between the PC and the homelab services does not touch the powerline** - but only since 24/08/2026, and the earlier version of this section claimed it as though it had always been true. It was half right: the PC (port 2) and the OptiPlex's onboard NIC (port 3) are both on the switch, so anything reached through the host's own flat-network address is local switching at gigabit. **But the homelab services in Trusted are not reached that way.** They are reached through the redirects on `192.168.1.95`, which is the firewall's WAN leg, and that leg was plugged into the powerline adapter - into a **100 Mbit/s port**, capping every household-to-homelab transfer at around 11 MB/s. Corrected on 24/08/2026 by moving that cable to a free port on the gigabit switch: the same measurement went from **11.3 MB/s to 109.4 MB/s**, and the path now stays inside the switch from end to end.
 
 ## What physically connects to the switch
 
@@ -186,7 +186,7 @@ Three cables, each with a different purpose:
 
 - **OptiPlex (onboard NIC) → switch, port 3**: a single cable configured as a trunk - carrying VLAN 1 untagged (the ordinary household network) **and** VLANs 10/20/30 tagged (the homelab zones), all mixed on the same physical wire. Every "device" across the three zones is a VM or container inside the same physical host; the separation happens in Proxmox's VLAN-aware bridge, not through extra cabling.
 - **Switch → powerline adapter → router**: its own independent cable (it predates Phase 2), giving VLAN 1 internet access - for any device plugged into the switch, such as the home PC. **This traffic never passes through the dedicated firewall.**
-- **OptiPlex (USB→RJ45 adapter) → powerline adapter → router**: another independent cable (created in Phase 2), the firewall VM's dedicated WAN leg - serving only the DMZ/Trusted/Management traffic.
+- **OptiPlex (USB→RJ45 adapter) → switch**: another independent cable, the firewall VM's dedicated WAN leg, serving only the DMZ/Trusted/Management traffic. **Moved here on 24/08/2026**; it previously went to the powerline adapter, whose RJ45 ports are 100 Mbit/s, which throttled everything the household sent to the homelab. It still reaches the router through the switch's own uplink, so nothing is lost: internet traffic was always limited by the ISP link long before this. Physical separation is preserved - it remains a separate cable, a separate NIC and a separate switch port from the trunk.
 
 The switch therefore plays a double role: it is simultaneously the trunk for the homelab VLANs **and** an ordinary switch for the household network (VLAN 1) - the separation between the two exists only because of the tags on each port, not through dedicated hardware. See also "Household network (outside this scheme)" below.
 
