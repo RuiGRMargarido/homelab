@@ -210,6 +210,29 @@ Option A was chosen deliberately (reaffirmed 24/08/2026): if the switch's VLAN c
 
 A note for anyone changing this later: there is **no bridging loop today**, because nothing joins `vmbr0` and `vmbr1` inside the host - OPNsense has no untagged interface on `vmbr0`, and the bridges do not talk to each other. Give OPNsense an untagged leg on `vmbr0`, or bridge the two in any other way, and VLAN 1 would have two paths between the switch and the host. With `bridge-stp off` in `/etc/network/interfaces`, nothing would detect or break that loop.
 
+### What the trunk on port 3 actually carries today
+
+A fair question, once the paths above are clear: if traffic from the household reaches TrueNAS through the WAN leg, does anything at all use the trunk?
+
+**Homelab traffic does not.** When OPNsense routes a packet from its WAN interface to TrueNAS, it leaves the OPNsense *Trusted* interface and arrives at TrueNAS's interface - and both of those are virtual NICs attached to **the same `vmbr0`**. A Linux bridge behaves like a switch: it learns which MAC sits on which port and delivers directly. Both endpoints are `tap` ports on that bridge, so the kernel hands the frame from one to the other. The physical NIC is simply another port on the same bridge, and receives nothing, because the destination is not on its side.
+
+**And it is worth being exact about who separates what.** The separation is done by **`vmbr0`**, the VLAN-aware bridge inside the host: it knows TrueNAS's interface is on tag 20, that OPNsense's Trusted leg is on tag 20 as well, and that WireGuard on tag 10 must see neither. Port 3 does not separate anything. It carries already-tagged frames *when they need to leave the machine* - and today they do not, because every device in all three zones is a VM or a container inside the same host.
+
+So the trunk currently carries exactly two things:
+
+- **VLAN 1 untagged**, which is how the host holds `192.168.1.206`. That is the path SSH and the Proxmox interface use when everything else breaks, the lockout fallback recorded on 06/08/2026, and the one that carried the entire diagnosis that day.
+- **Broadcast and flooded traffic** - ARP, DHCP and the like, which a bridge sends out of every port.
+
+The 10/20/30 tags on that port carry **no traffic at all** right now. They are infrastructure waiting for a case that does not yet exist, and there are three that would change it:
+
+| Case | What changes |
+|---|---|
+| The switch moves to Management | Its own management interface (`192.168.1.88` today) starts living on VLAN 30 - already the target zone in the inventory table above |
+| A **physical** machine joins a zone | Its switch port gets a tag, and the trunk starts carrying real traffic. The development machine arriving on Ethernet is exactly this decision, deliberately left open |
+| A second Proxmox host | The zones would have to cross a cable between machines, and the trunk becomes indispensable |
+
+None of this makes the trunk configuration wasted work: it is what allows a physical device to join a zone without redesigning anything. But it is honest to record that, as things stand, day-to-day traffic does not use it.
+
 ## Rules between zones
 
 OPNsense is *default-deny*: anything not explicitly permitted is blocked. Which means the list of what exists is, by itself, the complete policy.
@@ -390,3 +413,4 @@ Which app goes into the DMZ zone, and the network zone for the future developmen
 - 11/08/2026: added rule 4 (`WireGuard → flat network`) to the rule list, the matrix and the diagram, after discovering the VPN had reached no service at all since WireGuard's migration to the DMZ. The matrix gained the flat network as an explicit destination, since that is where most services still live - incident detail in `CHECKLIST.md`.
 - 11/08/2026: **TrueNAS migrated to Trusted**, so the zone is no longer empty and storage traffic now crosses the firewall. Added rule 5 (Trusted outbound) and the two destination-NAT rules that keep SMB and the TrueNAS web interface reachable from the home network. Document translated to English.
 - 24/08/2026: **the firewall's WAN leg moved from the powerline adapter to the switch**, and the port map, the cable list and the physical topology diagram updated accordingly. Corrected a claim that had stood since 02/08: that traffic between the PC and the homelab never touched the powerline. It was true only for the host's own flat-network address, and false for every service reached through the firewall's redirects - which is to say all of them, since those go to `192.168.1.95`, the WAN leg, and that leg was plugged into a **100 Mbit/s** RJ45 port on the powerline adapter. The same read test went from **11.3 MB/s to 109.4 MB/s**. Also added "Why two cables between the switch and the OptiPlex", which answers a question the document had never addressed: the trunk carries VLAN 1 too, so the second cable exists for the firewall's WAN leg, and the physical-versus-logical separation trade-off is now written down along with where that separation actually holds.
+- 24/08/2026: added "What the trunk on port 3 actually carries today", which answers a question the document implied but never stated: homelab traffic never crosses that cable. When OPNsense routes from its WAN leg to TrueNAS, both endpoints are virtual NICs on the same `vmbr0`, and a Linux bridge delivers between its own ports without touching the physical one. **The separation is done by `vmbr0`, not by the cable** - port 3 only transports already-tagged frames when they need to leave the machine, and today they never do, because every device in the three zones is a VM or container inside the same host. The trunk currently carries VLAN 1 untagged (the host's `192.168.1.206`, the lockout fallback) and broadcast traffic, and nothing else. The 10/20/30 tags are infrastructure waiting for the switch moving to Management, a physical machine joining a zone, or a second Proxmox host.
