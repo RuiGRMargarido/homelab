@@ -190,6 +190,26 @@ Three cables, each with a different purpose:
 
 The switch therefore plays a double role: it is simultaneously the trunk for the homelab VLANs **and** an ordinary switch for the household network (VLAN 1) - the separation between the two exists only because of the tags on each port, not through dedicated hardware. See also "Household network (outside this scheme)" below.
 
+### Why two cables between the switch and the OptiPlex
+
+The intuitive reading is that one cable carries the homelab VLANs and the other carries the household network. That is not what happens: **the trunk carries VLAN 1 as well**, untagged, alongside 10/20/30 tagged. It is how the host holds `192.168.1.206` on `vmbr0`, and why a throughput test against that address reaches full gigabit. Both cables carry VLAN 1; one of them simply carries more on top.
+
+The real reason for the second cable is the firewall. OPNsense needs a **WAN** interface, meaning the side it treats as outside, distinct from the interfaces facing the internal zones. That is not a preference, it is how a routing firewall decides which policy applies to what. The design question was only *where that WAN leg should live*, and there were two answers:
+
+| | How | Trade-off |
+|---|---|---|
+| **A - physical separation** *(chosen)* | Its own NIC (USB→RJ45) on its own bridge, `vmbr1` | WAN traffic and the internal VLANs never share a wire or a bridge. Costs a second cable, a second port and a USB adapter |
+| **B - logical separation** | One more virtual interface on `vmbr0`, untagged, using the VLAN 1 already on the trunk | One cable, no adapter, one less component to fail. Separation rests entirely on 802.1Q tags being correct |
+
+Option A was chosen deliberately (reaffirmed 24/08/2026): if the switch's VLAN configuration or a bridge definition is ever wrong, a physically distinct path cannot leak traffic by accident, whereas a mistagged interface can.
+
+**Where that separation actually lives is worth being precise about**, now that both cables land on the same switch:
+
+- **Inside the OptiPlex it is real.** `vmbr0` and `vmbr1` are separate bridges, and Linux does not forward frames between bridges. OPNsense holds its WAN on one and the three zones on the other, and **routes** between them rather than bridging - so no broadcast domain is shared.
+- **At the switch they meet.** Both cables sit on VLAN 1, in the same broadcast domain. There the separation is by port, not by network.
+
+A note for anyone changing this later: there is **no bridging loop today**, because nothing joins `vmbr0` and `vmbr1` inside the host - OPNsense has no untagged interface on `vmbr0`, and the bridges do not talk to each other. Give OPNsense an untagged leg on `vmbr0`, or bridge the two in any other way, and VLAN 1 would have two paths between the switch and the host. With `bridge-stp off` in `/etc/network/interfaces`, nothing would detect or break that loop.
+
 ## Rules between zones
 
 OPNsense is *default-deny*: anything not explicitly permitted is blocked. Which means the list of what exists is, by itself, the complete policy.
@@ -369,3 +389,4 @@ Which app goes into the DMZ zone, and the network zone for the future developmen
 - 06/08/2026: **separated current state from target state** - the document had a single diagram, the target one, presented as if it were reality. Since Phase 2 had only migrated WireGuard and Proxmox at that point, this hid the most important fact of the moment: **the Trusted zone was created but empty**, with TrueNAS/Caddy/Nextcloud/Jellyfin still on the flat network, with no firewall protection whatsoever. Added: a current-state diagram, a component-by-component inventory table (with current and target zone), and the distinction between firewall rules actually configured and those still to be written. The "Rules between zones" section had been entirely aspirational and matched nothing that was applied.
 - 11/08/2026: added rule 4 (`WireGuard → flat network`) to the rule list, the matrix and the diagram, after discovering the VPN had reached no service at all since WireGuard's migration to the DMZ. The matrix gained the flat network as an explicit destination, since that is where most services still live - incident detail in `CHECKLIST.md`.
 - 11/08/2026: **TrueNAS migrated to Trusted**, so the zone is no longer empty and storage traffic now crosses the firewall. Added rule 5 (Trusted outbound) and the two destination-NAT rules that keep SMB and the TrueNAS web interface reachable from the home network. Document translated to English.
+- 24/08/2026: **the firewall's WAN leg moved from the powerline adapter to the switch**, and the port map, the cable list and the physical topology diagram updated accordingly. Corrected a claim that had stood since 02/08: that traffic between the PC and the homelab never touched the powerline. It was true only for the host's own flat-network address, and false for every service reached through the firewall's redirects - which is to say all of them, since those go to `192.168.1.95`, the WAN leg, and that leg was plugged into a **100 Mbit/s** RJ45 port on the powerline adapter. The same read test went from **11.3 MB/s to 109.4 MB/s**. Also added "Why two cables between the switch and the OptiPlex", which answers a question the document had never addressed: the trunk carries VLAN 1 too, so the second cable exists for the firewall's WAN leg, and the physical-versus-logical separation trade-off is now written down along with where that separation actually holds.
