@@ -1,22 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 570" width="960" height="570" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" width="960" height="580" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
   <title>Homelab physical topology: router, powerline, switch and the OptiPlex's two NICs</title>
 
-  <rect width="960" height="570" fill="#121826"/>
+  <rect width="960" height="580" fill="#121826"/>
 
   <!-- connectors -->
   <g stroke="#4a5568" stroke-width="1.5" fill="none">
     <path d="M480 58 L480 86"/>
     <path d="M480 138 L480 168"/>
-    <path d="M250 214 L250 270"/>
-    <path d="M807 214 L807 400"/>
-    <path d="M330 334 L330 370 L580 370 L580 400"/>
-    <path d="M170 334 L170 388 L115 388 L115 410"/>
+    <path d="M480 214 L480 262"/>
+    <path d="M370 326 L370 366 L115 366 L115 400"/>
+    <path d="M530 326 L530 424"/>
   </g>
 
-  <text x="258" y="248" font-size="11" fill="#8792a5">VLAN 1 uplink</text>
-  <text x="815" y="248" font-size="11" fill="#8792a5">dedicated WAN leg</text>
-  <text x="178" y="357" font-size="11" fill="#8792a5">port 2</text>
-  <text x="470" y="362" text-anchor="middle" font-size="10.5" fill="#8792a5">port 3 · trunk · VLAN 1 untagged + VLANs 10/20/30 tagged</text>
+  <!-- the WAN leg, moved 24/08/2026 -->
+  <g stroke="#3e9678" stroke-width="2" fill="none">
+    <path d="M600 326 L600 366 L785 366 L785 424"/>
+  </g>
+
+  <text x="490" y="244" font-size="11" fill="#8792a5">VLAN 1 uplink · the only powerline crossing</text>
+  <text x="126" y="358" font-size="11" fill="#8792a5">port 2</text>
+  <text x="540" y="348" font-size="11" fill="#8792a5">port 3 · trunk</text>
+  <text x="700" y="358" font-size="11" fill="#4fb894">WAN leg</text>
 
   <!-- internet -->
   <rect x="402" y="20" width="156" height="38" rx="19" fill="#5f6a7d" stroke="#78849a" stroke-width="1"/>
@@ -28,36 +32,40 @@
   <text x="480" y="125" text-anchor="middle" font-size="11" fill="#2f3947">192.168.1.1 · DDNS · port forward</text>
 
   <!-- powerline -->
-  <rect x="140" y="168" width="680" height="46" rx="23" fill="#2a1f14" stroke="#b5651d" stroke-width="1.5" stroke-dasharray="7 4"/>
+  <rect x="280" y="168" width="400" height="46" rx="23" fill="#2a1f14" stroke="#b5651d" stroke-width="1.5" stroke-dasharray="7 4"/>
   <text x="480" y="188" text-anchor="middle" font-size="13" font-weight="600" fill="#d98a3a">Powerline network</text>
   <text x="480" y="205" text-anchor="middle" font-size="10.5" fill="#9a8265">the house's electrical wiring · shared medium</text>
 
+  <!-- note box -->
+  <rect x="40" y="264" width="262" height="88" rx="8" fill="#16241f" stroke="#3e9678" stroke-width="1"/>
+  <text x="56" y="286" font-size="11" font-weight="600" fill="#4fb894">Corrected 24/08/2026</text>
+  <text x="56" y="305" font-size="10.5" fill="#8fa89e">The WAN leg used to plug into the</text>
+  <text x="56" y="320" font-size="10.5" fill="#8fa89e">powerline adapter, whose RJ45 ports</text>
+  <text x="56" y="335" font-size="10.5" fill="#8fa89e">are 100 Mbit/s. Moved to the switch.</text>
+
   <!-- switch -->
-  <rect x="110" y="270" width="280" height="64" rx="8" fill="#1a2334" stroke="#3f5fa8" stroke-width="1.5"/>
-  <text x="250" y="295" text-anchor="middle" font-size="13" font-weight="600" fill="#eef2f8">Switch TL-SG608E · 8 ports</text>
-  <text x="250" y="316" text-anchor="middle" font-size="11" fill="#8792a5">192.168.1.88</text>
+  <rect x="330" y="262" width="300" height="64" rx="8" fill="#1a2334" stroke="#3f5fa8" stroke-width="1.5"/>
+  <text x="480" y="287" text-anchor="middle" font-size="13" font-weight="600" fill="#eef2f8">Switch TL-SG608E · 8 ports · gigabit</text>
+  <text x="480" y="308" text-anchor="middle" font-size="11" fill="#8792a5">192.168.1.88</text>
 
   <!-- PC -->
-  <rect x="40" y="410" width="150" height="56" rx="8" fill="#1c2e29" stroke="#3e9678" stroke-width="1.5"/>
-  <text x="115" y="434" text-anchor="middle" font-size="12.5" font-weight="600" fill="#4fb894">Home PC</text>
-  <text x="115" y="452" text-anchor="middle" font-size="10.5" fill="#7d8798">Windows</text>
+  <rect x="40" y="400" width="150" height="56" rx="8" fill="#1c2e29" stroke="#3e9678" stroke-width="1.5"/>
+  <text x="115" y="424" text-anchor="middle" font-size="12.5" font-weight="600" fill="#4fb894">Home PC</text>
+  <text x="115" y="442" text-anchor="middle" font-size="10.5" fill="#7d8798">Windows</text>
 
   <!-- OptiPlex -->
-  <rect x="450" y="400" width="480" height="130" rx="10" fill="#191f2e" stroke="#7b63b8" stroke-width="1.5"/>
-  <text x="472" y="427" font-size="13.5" font-weight="600" fill="#9d86d4">OptiPlex 3060 Micro · Proxmox VE</text>
+  <rect x="400" y="400" width="530" height="132" rx="10" fill="#191f2e" stroke="#7b63b8" stroke-width="1.5"/>
 
-  <g stroke="#4a5568" stroke-width="1.5" fill="none">
-    <path d="M580 400 L580 446"/>
-    <path d="M807 400 L807 446"/>
-  </g>
+  <rect x="420" y="424" width="220" height="60" rx="6" fill="#7b63b8"/>
+  <text x="530" y="448" text-anchor="middle" font-size="12.5" font-weight="600" fill="#f5f2fb">Onboard NIC</text>
+  <text x="530" y="468" text-anchor="middle" font-size="10.5" fill="#e2daf5">vmbr0 · VLAN-aware</text>
 
-  <rect x="470" y="446" width="220" height="60" rx="6" fill="#7b63b8"/>
-  <text x="580" y="470" text-anchor="middle" font-size="12.5" font-weight="600" fill="#f5f2fb">Onboard NIC</text>
-  <text x="580" y="490" text-anchor="middle" font-size="10.5" fill="#e2daf5">vmbr0 · VLAN-aware</text>
+  <rect x="668" y="424" width="242" height="60" rx="6" fill="#7b63b8"/>
+  <text x="789" y="448" text-anchor="middle" font-size="12.5" font-weight="600" fill="#f5f2fb">USB→RJ45 adapter</text>
+  <text x="789" y="468" text-anchor="middle" font-size="10.5" fill="#e2daf5">vmbr1 · untagged · firewall WAN</text>
 
-  <rect x="700" y="446" width="214" height="60" rx="6" fill="#7b63b8"/>
-  <text x="807" y="470" text-anchor="middle" font-size="12.5" font-weight="600" fill="#f5f2fb">USB→RJ45 adapter</text>
-  <text x="807" y="490" text-anchor="middle" font-size="10.5" fill="#e2daf5">vmbr1 · untagged</text>
+  <text x="665" y="512" text-anchor="middle" font-size="13" font-weight="600" fill="#9d86d4">OptiPlex 3060 Micro · Proxmox VE</text>
 
-  <text x="480" y="553" text-anchor="middle" font-size="10.5" fill="#7d8798">Everything going to the internet crosses the same powerline: it is both the bandwidth bottleneck and a single point of failure.</text>
+  <text x="480" y="558" text-anchor="middle" font-size="10.5" fill="#7d8798">Only the switch's uplink still crosses the powerline. It remains a single point of failure for internet access, but no longer sits between the household and the homelab.</text>
+  <text x="480" y="574" text-anchor="middle" font-size="10.5" fill="#4fb894">Measured after the change: reading from the TrueNAS share went from 11.3 MB/s to 109.4 MB/s.</text>
 </svg>
