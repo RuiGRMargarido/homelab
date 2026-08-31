@@ -133,11 +133,11 @@ Since 11/08/2026 there is a fifth consideration: TrueNAS lives in the Trusted zo
 | Nextcloud database (MariaDB) | Docker volume on the LXC 104 disk | **Yes**, daily dump since 01/09/2026, 7 versions kept |
 | Jellyfin config and cache | Docker volumes on the LXC 105 disk | **No** |
 | VM and LXC disks | Proxmox's local 256GB SSD | **No** |
-| OPNsense configuration | inside VM 106 | **No** |
+| OPNsense configuration | inside VM 106 | **Manual only** - exported by hand 24/08/2026, automation still pending |
 
 ### What this reveals
 
-Three gaps the table makes visible, in order of severity:
+Gaps the table makes visible, in order of severity. The first is now closed; the reasoning is kept because it is what made the fix worth doing:
 
 - ~~**The Nextcloud database is not backed up.**~~ **Closed 01/09/2026.** The files were safe while the database that knows who owns them, which shares exist and what metadata they carry was not - a restore would have handed back files with no Nextcloud around them. Now dumped daily before the file sync, with seven versions retained. See "The Nextcloud database" below.
 - **The OPNsense configuration is not backed up.** Already recorded as a risk in `PROJECT_CONTEXT.md` and as an open task in `CHECKLIST.md`, but worth repeating: losing this means losing the entire network policy, not one service.
