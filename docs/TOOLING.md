@@ -48,7 +48,19 @@ Ready-made connectors (Slack, Obsidian) were searched for through Claude's "conn
 Three complementary levels, all self-hosted in the homelab itself, all alerting into a dedicated Slack channel (e.g. `#homelab-alerts`) through a Slack **Incoming Webhook** (simpler than OAuth for outbound alerts only):
 
 1. **Uptime Kuma** - real-time "is it up?" monitoring (HTTP/TCP/ping/Docker/SSL) for each service (TrueNAS, Jellyfin, WireGuard, router...). Supports Slack natively (one of its 90+ notification channels). It is the de facto standard for homelabs.
-2. **Healthchecks.io (self-hosted)** - a dead man's switch for scheduled jobs (backups, ZFS scrub, Ansible runs). A script finishes with a `curl` to a unique URL; if the ping fails or arrives late, it alerts. This catches the silent failures Uptime Kuma cannot see (e.g. "the backup stopped running three weeks ago but the server is up").
+2. ~~**Healthchecks.io (self-hosted)**~~ - **dropped 26/08/2026**, and the reasoning matters more than the conclusion.
+
+   The need was real and remains: a *dead man's switch* for scheduled jobs (backups, ZFS scrub, Ansible runs). A script ends with a `curl` to a unique URL; if the ping never arrives, it alerts. It catches the failure Uptime Kuma structurally cannot see - "the backup stopped running three weeks ago but the server is up" - because a job that fails produces an error, while a job that stops running produces **nothing at all**, and silence is the only evidence.
+
+   What changed is that **Uptime Kuma turned out to already implement this**. Its **Push** monitors are dead man's switches: the monitor waits for a heartbeat and goes red if none arrives within the interval. The mechanism the whole tool was chosen for is a monitor type in something already installed.
+
+   **What Healthchecks would still add**: proper cron-expression schedules rather than a flat interval, per-check grace periods, and a richer history of job runs. Genuinely better *if there were many scheduled jobs with irregular timing*. There are two, both on fixed schedules.
+
+   **What it would cost**: it is a Django application, so PostgreSQL, `SITE_ROOT` and allowed-hosts configuration, its own notification channel configured separately from the existing Slack webhook, and another container and database to maintain. On a host with 16GB that **ran out of memory on 25/08** (load 1633, 741MB available) and where the decision of 24/08 was to buy no more hardware, that is not a small addition.
+
+   And it would contradict the rule written into `MONITORING.md` the same week: **whatever does the watching must be simpler, and depend on less, than what it watches.** Standing up a Django and Postgres stack to watch two cron jobs inverts that.
+
+   **The decision**: cover the scheduled jobs with Uptime Kuma Push monitors, on the instance that already exists and is already wired to Slack. **Revisit Healthchecks if** the number of scheduled jobs grows beyond a handful, if any of them needs a genuine cron expression rather than a fixed interval, or if per-job grace periods start mattering. The need was never wrong; the second tool was.
 3. **Prometheus + Grafana** - brought forward into the initial phase (it used to be "later, not urgent"). Rationale: the two levels above answer "is it up?", but not "why is it slow" nor "this has been degrading for weeks". On a host whose RAM is already overcommitted (see `PROJECT_CONTEXT.md` §Risks), knowing the consumption trend is worth more than a binary alert. Running it inside the k3s cluster (section 4) through `kube-prometheus-stack` (a Helm chart) is close to immediate - node/cAdvisor exporters plus ready-made dashboards, with no significant manual configuration, giving CPU/RAM/disk/network graphs per VM and per pod.
 
 Optional complement through Claude: a scheduled task (the `schedule` skill) running, say, once a day, querying the Uptime Kuma API plus the open items in `PROJECT_CONTEXT.md`, and posting a natural-language summary into the same Slack channel. That is a *report*, not the critical alert - the alerting itself (steps 1 and 2) must keep working without depending on any LLM session running.
