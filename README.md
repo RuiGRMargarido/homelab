@@ -86,6 +86,7 @@ These are the parts worth reading if you want to see how problems were approache
 | [STORAGE.md](docs/STORAGE.md) | Storage chain from physical disk to container, boot-order dependencies, backup design |
 | [PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) | Decision log with rationale, including reversed decisions |
 | [TOOLING.md](docs/TOOLING.md) | Tooling decisions: IaC, monitoring, documentation |
+| [MONITORING.md](docs/MONITORING.md) | How the platform watches itself: push-based dead man's switches, thresholds drawn from real incidents, and what each alert means |
 | [WORKFLOW.md](docs/WORKFLOW.md) | Where each tool runs and how the workflow fits together |
 | [HARDWARE.md](docs/HARDWARE.md) | Hardware criteria and options considered |
 
