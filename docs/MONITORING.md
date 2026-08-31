@@ -115,12 +115,28 @@ Scheduled as:
 
 ## The monitors
 
-**The two that matter**, both push, and the only ones that would have caught this month's real failures:
+**The four that matter** are all push. The first two are the only ones that would have caught this month's real failures; the last two cover the scheduled jobs, whose failure mode is invisible to any availability check:
 
 | Monitor | What it demands to stay green |
 |---|---|
 | `NFS mounts (host)` | All three `ls` answer in under 20 seconds each |
 | `Host health (Proxmox)` | Load below 20, more than 800MB available, I/O pressure `full` below 50% |
+| `Backup diário (04:00)` | The backup script reached its final line, which `set -e` guarantees only happens if both `rsync` runs succeeded |
+| `ZFS scrub` | A daily check inside TrueNAS finds the last scrub to be less than 55 days old |
+
+### Scheduled jobs
+
+These two catch what an availability check structurally cannot see. A job that **fails** produces an error; a job that **stops running** produces nothing at all, and silence is the only evidence there is.
+
+**The backup** was the easy one. The script already begins with `set -e`, so it aborts on the first error and never reaches the end. That makes a single `curl` on the last line an exact success condition, with no status checking needed - the control flow already encodes it.
+
+**The scrub needed the question inverted.** The obvious design is for the job to announce itself when it runs. That fails here for two reasons: Uptime Kuma caps the heartbeat interval at 24 days while the scrub cadence is longer, and more importantly, a job that is **removed from the schedule** would never announce anything, and nothing would notice.
+
+So instead a daily cron inside TrueNAS reads `zpool status`, works out how many days ago the last scrub finished, and only sends a heartbeat if that number is under the threshold. The interval matches **how often we check**, not how often the job runs - and it detects the schedule quietly disappearing, which the obvious design does not.
+
+**Getting that threshold right took arithmetic, and the first attempt was wrong.** TrueNAS scrub tasks have two parameters: a schedule saying *when it may run* (here: Sundays at 00:00) and `Threshold Days` saying *how long must have passed* to bother (here: 35). The real worst-case interval is therefore 35 days plus up to 6 more waiting for the next Sunday: **41 days**. The alarm was first set at 40, which would have fired on its own with nothing wrong.
+
+That mistake is worth recording, because a false alarm is worse than no alarm: **it teaches you to ignore the alert**, and the next one to fire will be real. The threshold is now 55 days - the worst case plus a fortnight to notice and act.
 
 **Nine conventional ones**, HTTP and ping: Proxmox, Jellyfin, Nextcloud, Caddy, TrueNAS UI, router, switch, and internet reachability. Useful and cheap, but they report *"it answered"*, not *"it works"*.
 
@@ -162,11 +178,11 @@ iostat -x 5 3 sdb; ps -eo stat,comm --no-headers | awk '$1 ~ /^D/' | wc -l
 ## What is not covered yet
 
 - **TrueNAS restarting unexpectedly** - it rebooted itself six times on 24/08 and nobody noticed until the boot list was read by chance
-- **Scheduled jobs that stop running at all** - a dead man's switch for the 04:00 backup and the ZFS scrub, which Uptime Kuma cannot see because their absence produces no failure, only silence
 - **History and graphs beyond Uptime Kuma's retention** - Prometheus and Grafana, deliberately deferred: it is the alerting that has value here, not the dashboards
 
 ## History
 
-- 26/08/2026: **document created, along with the monitoring itself**. LXC 108 with Uptime Kuma, the push script on the Proxmox host, cron under `flock`, and the Slack webhook - tested by stopping a real container rather than trusting the test button. This is the first point in the project where a failure can announce itself: every incident until now was found by noticing something was broken, sometimes days late.
-- 26/08/2026: **I/O pressure added to the host check** (`/proc/pressure/io`, `full` avg60, threshold 50%). It is the earliest of the three signals, because load average only rises once processes have already accumulated waiting, while I/O pressure measures the cause directly.
-- 26/08/2026: **scheduled jobs covered with Push monitors rather than a second tool**. Healthchecks.io had been in the plan since July for exactly this, and was dropped on realising Uptime Kuma's Push monitors already implement the same pattern - see `TOOLING.md` §3 for the full reasoning. The short version: a Django and Postgres stack to watch two cron jobs would have inverted the rule stated further up this document, that the watcher must be simpler and depend on less than what it watches.
+- 31/08/2026: **document created, along with the monitoring itself**. LXC 108 with Uptime Kuma, the push script on the Proxmox host, cron under `flock`, and the Slack webhook - tested by stopping a real container rather than trusting the test button. This is the first point in the project where a failure can announce itself: every incident until now was found by noticing something was broken, sometimes days late.
+- 31/08/2026: **I/O pressure added to the host check** (`/proc/pressure/io`, `full` avg60, threshold 50%). It is the earliest of the three signals, because load average only rises once processes have already accumulated waiting, while I/O pressure measures the cause directly.
+- 31/08/2026: **scheduled jobs covered with Push monitors rather than a second tool**. Healthchecks.io had been in the plan since July for exactly this, and was dropped on realising Uptime Kuma's Push monitors already implement the same pattern - see `TOOLING.md` §3 for the full reasoning. The short version: a Django and Postgres stack to watch two cron jobs would have inverted the rule stated further up this document, that the watcher must be simpler and depend on less than what it watches.
+- 31/08/2026: **scheduled jobs covered**, and a dating error in this document corrected along the way - the monitoring work was done on 31/08, not 26/08 as first recorded. The backup pushes from the last line of its script, which `set -e` makes an exact success condition. The scrub is checked differently: a daily cron inside TrueNAS reads the age of the last scrub and only sends a heartbeat while it is recent, so the monitor also catches the schedule being removed, which a job-announces-itself design never would. The threshold was set to 40 days first and that was wrong: with `Threshold Days` at 35 and the task allowed to run only on Sundays, the real worst case is 41 days, so it would have fired on its own. Corrected to 55. **A false alarm is worse than no alarm** - it teaches you to ignore the alert, and the next one will be real.

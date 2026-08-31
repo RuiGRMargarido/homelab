@@ -48,7 +48,7 @@ Ready-made connectors (Slack, Obsidian) were searched for through Claude's "conn
 Three complementary levels, all self-hosted in the homelab itself, all alerting into a dedicated Slack channel (e.g. `#homelab-alerts`) through a Slack **Incoming Webhook** (simpler than OAuth for outbound alerts only):
 
 1. **Uptime Kuma** - real-time "is it up?" monitoring (HTTP/TCP/ping/Docker/SSL) for each service (TrueNAS, Jellyfin, WireGuard, router...). Supports Slack natively (one of its 90+ notification channels). It is the de facto standard for homelabs.
-2. ~~**Healthchecks.io (self-hosted)**~~ - **dropped 26/08/2026**, and the reasoning matters more than the conclusion.
+2. ~~**Healthchecks.io (self-hosted)**~~ - **dropped 31/08/2026**, and the reasoning matters more than the conclusion.
 
    The need was real and remains: a *dead man's switch* for scheduled jobs (backups, ZFS scrub, Ansible runs). A script ends with a `curl` to a unique URL; if the ping never arrives, it alerts. It catches the failure Uptime Kuma structurally cannot see - "the backup stopped running three weeks ago but the server is up" - because a job that fails produces an error, while a job that stops running produces **nothing at all**, and silence is the only evidence.
 
