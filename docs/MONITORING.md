@@ -53,9 +53,11 @@ cron (every minute, on the host)
           ├─ 2. real ls on the 3 mounts, 20s hard timeout each
           │      └─ all three answered? → curl .../api/push/<nfs-token>
           │         any failure or timeout? → send nothing
-          └─ 3. guest uptime via the QEMU agent, 20s timeout
+          └─ 3. guest uptime via the QEMU agent, 45s timeout
                  └─ above 30 minutes? → curl .../api/push/<truenas-token>
                     just restarted, or agent silent? → send nothing
+                    could not even ask? → send nothing, and log to
+                                          /var/log/monitor-push.err
 
 Separately, outside this script:
   backup-homelab.sh, final line   → curl .../api/push/<backup-token>
@@ -74,8 +76,12 @@ Reproduced with the tokens redacted; the working copy is at `/usr/local/bin/moni
 
 ```bash
 #!/bin/bash
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Dead man's switch for Uptime Kuma.
 # It pushes ONLY when a check genuinely passes. Silence is the alarm.
+#
+# The PATH above is not decoration. cron runs with PATH=/usr/bin:/bin and qm
+# lives in /usr/sbin, so without it the TrueNAS check silently does nothing.
 #
 # Order matters: the cheap checks run first, so an expensive one that hangs
 # cannot delay them. flock then prevents overlapping runs.
@@ -122,7 +128,9 @@ MS=$(( ($(date +%s%N) - START) / 1000000 ))
 # Reads the GUEST's uptime, not the QEMU process start time: on 24/08/2026 the
 # guest rebooted six times while the QEMU process kept running, so watching the
 # process would have seen nothing.
-UP=$(timeout 20 qm guest exec 102 -- /bin/cat /proc/uptime 2>/dev/null \
+# Absolute path to qm, and an error log rather than /dev/null: both were paid
+# for on 01/09, see History.
+UP=$(timeout 45 /usr/sbin/qm guest exec 102 -- /bin/cat /proc/uptime 2>>/var/log/monitor-push.err \
      | sed -n 's/.*"out-data" : "\([0-9][0-9]*\)\..*/\1/p')
 if [ -n "$UP" ] && [ "$UP" -gt "$MIN_UPTIME_S" ]; then
   push "$TRUENAS_TOKEN" "uptime $((UP/86400))d $(( (UP%86400)/3600 ))h" ""
@@ -157,11 +165,13 @@ So the check reads **the guest's own uptime**, through the QEMU guest agent, whi
 
 The logic is inverted like the others: it pushes **only when uptime is above 30 minutes**. A restart therefore produces silence, an alert around two minutes later, and self-recovery half an hour after that. Planned reboots trip it too, which is correct - a reboot is worth being told about, and one you performed yourself is trivially dismissed. The alternative, alerting only on *unexpected* restarts, would require the monitor to know your intentions.
 
-A useful side effect: if the guest agent stops answering, no signal is sent either. That is not a false positive - a TrueNAS that cannot answer its agent is always news.
+A silent guest agent produces exactly the same silence as a restart, and the monitor cannot tell the two apart. For an agent that genuinely fails to answer that is acceptable, because a TrueNAS in that state is news either way.
+
+It is **not** acceptable for the third case, which this document originally failed to consider and which then cost an hour on 01/09: the script never managing to *ask* the question at all. A dead man's switch is structurally incapable of reporting its own defects, so the defect has to leave a trace somewhere else. That is why stderr from the guest agent call is appended to `/var/log/monitor-push.err` instead of being discarded. **When this monitor fires, that file is the first thing to read**, before touching TrueNAS at all.
 
 ### Why the checks run in that order
 
-The host health block runs **first**, and that is deliberate rather than incidental. It reads only files under `/proc`, so it is instantaneous and can never block. The NFS check can consume up to sixty seconds, and the guest agent call up to twenty more.
+The host health block runs **first**, and that is deliberate rather than incidental. It reads only files under `/proc`, so it is instantaneous and can never block. The NFS check can consume up to sixty seconds, and the guest agent call up to forty-five more.
 
 In the original version the NFS check came first. Combined with `flock`, that meant a hanging mount could push the whole run past a minute, so subsequent runs were skipped - and **the cheapest, most reliable check stopped reporting precisely during the incident it was most useful for**. Ordering by cost fixes that: whatever is guaranteed to complete goes first.
 
@@ -214,6 +224,14 @@ iostat -x 5 3 sdb; ps -eo stat,comm --no-headers | awk '$1 ~ /^D/' | wc -l
 
 **`Host health` red** tells you which of the three thresholds broke, through the message in the monitor's history: it carries `load=`, `avail=` and `psi=`. That is why they are in the message rather than only in the graph.
 
+**`TrueNAS uptime` red** has two causes that look identical from Uptime Kuma and call for opposite responses. One command separates them:
+
+```bash
+tail /var/log/monitor-push.err; qm guest exec 102 -- /bin/cat /proc/uptime
+```
+
+Anything in the error log means **the check is broken, not TrueNAS**. An empty log plus a command that answers normally means the restart was real, and the next place to look is `journalctl --list-boots` inside the guest.
+
 **Both red at once** is the full cascade. The recovery runbook is in `SECRETS.md`, under "Very high load with the disk idle".
 
 ## What is not covered yet
@@ -226,4 +244,6 @@ iostat -x 5 3 sdb; ps -eo stat,comm --no-headers | awk '$1 ~ /^D/' | wc -l
 - 31/08/2026: **I/O pressure added to the host check** (`/proc/pressure/io`, `full` avg60, threshold 50%). It is the earliest of the three signals, because load average only rises once processes have already accumulated waiting, while I/O pressure measures the cause directly.
 - 31/08/2026: **scheduled jobs covered with Push monitors rather than a second tool**. Healthchecks.io had been in the plan since July for exactly this, and was dropped on realising Uptime Kuma's Push monitors already implement the same pattern - see `TOOLING.md` §3 for the full reasoning. The short version: a Django and Postgres stack to watch two cron jobs would have inverted the rule stated further up this document, that the watcher must be simpler and depend on less than what it watches.
 - 31/08/2026: **scheduled jobs covered**, and a dating error in this document corrected along the way - the monitoring work was done on 31/08, not 26/08 as first recorded. The backup pushes from the last line of its script, which `set -e` makes an exact success condition. The scrub is checked differently: a daily cron inside TrueNAS reads the age of the last scrub and only sends a heartbeat while it is recent, so the monitor also catches the schedule being removed, which a job-announces-itself design never would. The threshold was set to 40 days first and that was wrong: with `Threshold Days` at 35 and the task allowed to run only on Sundays, the real worst case is 41 days, so it would have fired on its own. Corrected to 55. **A false alarm is worse than no alarm** - it teaches you to ignore the alert, and the next one will be real.
-- 01/09/2026: **restart detection added, and the check order corrected**. `TrueNAS uptime` reads the guest's own uptime through the QEMU guest agent and pushes only while it exceeds thirty minutes, so a restart shows up as silence and reaches Slack about two minutes later. The design point worth keeping: watching the **QEMU process** would have detected none of the six restarts of 24/08, because the process ran continuously from the 18th while the guest rebooted itself from the 21st - a hardware reset restarts the operating system without the hypervisor process ever dying. The same commit reordered the script so the host-health block runs first: it reads only `/proc` and cannot block, whereas the NFS check can take a minute. With `flock` preventing overlap, having the slow check first meant the cheapest and most reliable one stopped reporting exactly during the incidents it existed for.
+- 01/09/2026: **restart detection added, and the check order corrected** (this monitor did not actually work until the fix recorded below, and the two entries should be read together). `TrueNAS uptime` reads the guest's own uptime through the QEMU guest agent and pushes only while it exceeds thirty minutes, so a restart shows up as silence and reaches Slack about two minutes later. The design point worth keeping: watching the **QEMU process** would have detected none of the six restarts of 24/08, because the process ran continuously from the 18th while the guest rebooted itself from the 21st - a hardware reset restarts the operating system without the hypervisor process ever dying. The same commit reordered the script so the host-health block runs first: it reads only `/proc` and cannot block, whereas the NFS check can take a minute. With `flock` preventing overlap, having the slow check first meant the cheapest and most reliable one stopped reporting exactly during the incidents it existed for.
+- 01/09/2026: **the restart monitor was itself broken, and how it broke is the more useful lesson**. `TrueNAS uptime` had never once fired from cron. Every green beat it ever showed came from a manual test run, which is why it looked healthy for a whole day and why its uptime figure sat at 4.57%. The cause was mundane: `qm` lives in `/usr/sbin`, cron runs with `PATH=/usr/bin:/bin`, and the `2>/dev/null` on that line threw away the `command not found` that would have answered the question in one glance. Three hypotheses were tried and killed by measurement before that one: the guest agent starved by the concurrent backup (it answered in 1.2 seconds), the `sed` parser (it returned the right number), and `flock` contention (no run was ever stuck, and the whole script completed in 1.2 seconds). What separated the cases was running the script under cron's own environment rather than a login shell, `env -i PATH=/usr/bin:/bin /usr/local/bin/monitor-push.sh`, which failed instantly. Fixed with an explicit `PATH` at the top of the script and an absolute path on `qm`, and stderr from that call now appends to `/var/log/monitor-push.err` so the next broken check leaves evidence instead of silence. The uncomfortable part: the identical mistake had been made and corrected in the TrueNAS scrub cron job hours earlier, where `/usr/sbin/zpool` and `/usr/bin/curl` were spelled out from the start. **A lesson applied in one place and not carried to the neighbouring one is not yet a lesson.**
+- 01/09/2026: **and the first thing the working monitor reported was a restart nobody had seen**. With the check finally running, the guest's `/proc/uptime` read 25h50m while the QEMU process had been up for seven days: **TrueNAS restarted itself on 30/08 at roughly 21:50 UTC**, and at the time nothing noticed. Third spontaneous restart on record, after the six of 24/08, and precisely the scenario the monitor exists for. The root cause of these restarts is still open, tracked in `CHECKLIST.md`.
