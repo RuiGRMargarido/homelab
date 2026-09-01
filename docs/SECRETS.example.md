@@ -50,6 +50,20 @@ Central table with one main access per service. For services with more than one 
 | k3s (kubectl) | *(see kubeconfig, path below)* | | | - |
 | GitHub | github.com/\<user\>/\<repo\> | | *(handled by Git Credential Manager, no need to keep it here)* | - |
 
+### Uptime Kuma push tokens
+
+Anyone holding one of these can forge a heartbeat, which means silencing an alarm. Treat them as credentials. Each is the last path segment of the monitor's push URL, visible under the monitor's Edit view.
+
+| Monitor | Token |
+|---|---|
+| NFS mounts (host) | |
+| Host health (Proxmox) | |
+| TrueNAS uptime | |
+| Backup diario (04:00) | |
+| ZFS scrub | |
+
+The Slack Incoming Webhook URL belongs here too, for the same reason: it posts to the channel on its own authority.
+
 ## \<Name of a service with multiple users or its own configuration\> (e.g. TrueNAS, Nextcloud, Jellyfin)
 
 Create a section like this for every service that has more than one user, or enough configuration to justify its own section (follow the WireGuard pattern below). Simple services (just a root console) stay only in the generic "Administrative access per service" table.

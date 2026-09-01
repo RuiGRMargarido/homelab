@@ -16,7 +16,8 @@ Everything here is documented as it was actually built, including the parts that
 | Services | Nextcloud, Jellyfin, Caddy (all Docker Compose inside LXC) |
 | Media automation | Sonarr, Radarr, Prowlarr, qBittorrent, Jellyseerr - download traffic isolated behind gluetun |
 | Hardware acceleration | Intel QuickSync passed through to an unprivileged LXC for Jellyfin transcoding |
-| Backups | `rsync` to external SSD, cron-scheduled, restore validated |
+| Backups | `rsync` to external SSD plus a verified `mysqldump`, cron-scheduled, restore validated |
+| Monitoring | Uptime Kuma in its own LXC, push-based dead man's switches, alerts to Slack |
 | Planned | OpenTofu, Ansible, k3s, Prometheus + Grafana, GitHub Actions CI |
 
 Hardware: Dell OptiPlex 3060 Micro (i5-8500T, 16GB RAM), 1TB HDD, 1TB external SSD for backups, TP-Link TL-SG608E managed switch.
@@ -40,13 +41,13 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 
 | Phase | State |
 |---|---|
-| 0. Hardware | Done, except a pending RAM upgrade to 32GB |
+| 0. Hardware | Done. The RAM and SSD upgrades are conditional options with triggers, not scheduled work |
 | 1. Base services | **Done** and validated (TrueNAS, WireGuard, Caddy, Nextcloud, Jellyfin, backups) |
 | 2. VLANs and firewall | **In progress** (network built; WireGuard and TrueNAS migrated, three services to go) |
 | 2b. Media automation | **Done** (hardware transcoding, *arr stack behind a VPN kill-switch) |
-| 3. Storage / RAID | Not started |
+| 3. Storage / RAID | **Conditional**, with documented triggers - not scheduled work |
 | 4. IaC and Kubernetes | Not started |
-| 5. Monitoring and alerting | Not started |
+| 5. Monitoring and alerting | **Done** (Uptime Kuma, push heartbeats from host and guests, Slack alerts) |
 | 6. Documentation tooling | Not started |
 
 Full task-level breakdown in [CHECKLIST.md](docs/CHECKLIST.md).
@@ -76,6 +77,10 @@ These are the parts worth reading if you want to see how problems were approache
 **[Backup silently aborting on exFAT](docs/CHECKLIST.md#history)** - `rsync -a` failed the entire transfer because exFAT cannot store Unix ownership, and `-a` always tries to preserve it. Resolved with explicit flags matched to the filesystem's actual capabilities.
 
 **[DHCP leases expiring without renewal](docs/CHECKLIST.md#history)** - containers lost IPv4 connectivity after hours of uptime. Two rounds of fixes treated the symptom before the actual cause was identified, leading to a project-wide move to static addressing.
+
+**[The monitor that never ran](docs/MONITORING.md#history)** - a newly built restart alarm looked healthy for a day and had never once fired from cron. Every green beat it had shown came from a manual test, which is exactly what made it convincing. `qm` lives in `/usr/sbin`, cron runs with `PATH=/usr/bin:/bin`, and a `2>/dev/null` discarded the one message that would have ended the question immediately. Three plausible explanations were killed by measurement before the real one, and the fix that mattered was not the `PATH` line but making a broken check leave evidence: a dead man's switch cannot report its own defects, so "no signal" has to be distinguishable from "could not ask".
+
+**[Two failures wearing the same symptom](docs/CHECKLIST.md#history)** - a self-restarting storage VM read at first as the six-day incident from the week before, returning. Reading the guest's kernel log across boots separated them: the old failure was cascades of RCU stalls with the ZFS write path and every NFS thread blocked behind them, and it stopped completely after the fixes. What remained had the opposite shape, a single stall with nothing blocked, and a report naming a halted vCPU whose timer interrupt never arrived. That detail moves the fault across the boundary, because a halted vCPU is the hypervisor's to wake. The write-up also records a mitigation that had been documented as working for a week and was not.
 
 ## Documentation
 
