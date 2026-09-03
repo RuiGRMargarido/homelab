@@ -56,8 +56,11 @@ cron (every minute, on the host)
           └─ 3. guest uptime via the QEMU agent, 45s timeout
                  └─ above 30 minutes? → curl .../api/push/<truenas-token>
                     just restarted, or agent silent? → send nothing
-                    could not even ask? → send nothing, and log to
-                                          /var/log/monitor-push.err
+                    could not even ask? → send nothing, and stderr goes
+                                          to the journal, tag monitor-push
+          └─ 4. VPN tunnel via LXC 107, 15s timeout
+                 └─ gluetun healthy AND qbittorrent up AND a public IP recorded?
+                    → curl .../api/push/<vpn-token>
 
 Separately, outside this script:
   backup-homelab.sh, final line   → curl .../api/push/<backup-token>
@@ -129,20 +132,35 @@ MS=$(( ($(date +%s%N) - START) / 1000000 ))
 # Reads the GUEST's uptime, not the QEMU process start time: on 24/08/2026 the
 # guest rebooted six times while the QEMU process kept running, so watching the
 # process would have seen nothing.
-# Absolute path to qm, and an error log rather than /dev/null: both were paid
-# for on 01/09, see History.
-UP=$(timeout 45 /usr/sbin/qm guest exec 102 -- /bin/cat /proc/uptime 2>>/var/log/monitor-push.err \
+# Absolute path to qm rather than bare qm: paid for on 01/09, see History.
+UP=$(timeout 45 /usr/sbin/qm guest exec 102 -- /bin/cat /proc/uptime \
      | sed -n 's/.*"out-data" : "\([0-9][0-9]*\)\..*/\1/p')
 if [ -n "$UP" ] && [ "$UP" -gt "$MIN_UPTIME_S" ]; then
   push "$TRUENAS_TOKEN" "uptime $((UP/86400))d $(( (UP%86400)/3600 ))h" ""
+fi
+
+# --- 4. VPN tunnel (LXC 107) ---
+# One pct exec rather than three. Each command guarantees a line even when it
+# fails, with "|| echo none", otherwise the fields shift and the first value
+# read becomes the next container's, which would be a false green.
+VPN=$(timeout 15 pct exec 107 -- sh -c 'docker inspect --format "{{.State.Health.Status}}" gluetun 2>/dev/null || echo none; docker inspect --format "{{.State.Running}}" qbittorrent 2>/dev/null || echo none; docker exec gluetun cat /tmp/gluetun/ip 2>/dev/null || echo none' | tr -d '
+' | tr '
+' ' ')
+GL=$(echo "$VPN" | awk '{print $1}')
+QB=$(echo "$VPN" | awk '{print $2}')
+VIP=$(echo "$VPN" | awk '{print $3}')
+if [ "$GL" = "healthy" ] && [ "$QB" = "true" ] && [ -n "$VIP" ] && [ "$VIP" != "none" ]; then
+  push "$VPN_TOKEN" "tunel ok, saida ${VIP}" ""
 fi
 ```
 
 Scheduled as:
 
 ```
-* * * * * /usr/bin/flock -n /run/monitor-push.lock /usr/local/bin/monitor-push.sh
+* * * * * /usr/bin/flock -n /run/monitor-push.lock /usr/local/bin/monitor-push.sh 2>&1 | /usr/bin/logger -t monitor-push
 ```
+
+**Errors go to the journal, not to a file** (changed 03/09/2026). The first version appended stderr to `/var/log/monitor-push.err`, which was better than the `/dev/null` it replaced but had a defect found on its first real use: **a trace with no timestamp cannot distinguish "this happened during last night's reboot" from "this is happening now"**. Eight lines of `ipcc_send_rec failed: Connection refused` turned out to be `qm` and `pct` talking to a `pmxcfs` that had already stopped during a shutdown, which is harmless, but proving that took a look at the file's mtime rather than at the lines themselves. Piping through `logger` gets timestamps, rotation and a consistent home for free, and on Proxmox 9 the journal is where everything else lives anyway, since there is no `/var/log/syslog`. Read it with `journalctl -t monitor-push --since today`.
 
 **Swap is in the message rather than only in a threshold** (added 03/09/2026), because it is currently evidence in an open investigation rather than an alarm condition. See "The trap" below.
 
@@ -177,6 +195,7 @@ Remove it once the fault is understood. An instrument built for one question sho
 | `Backup diário (04:00)` | The backup script reached its final line, which `set -e` guarantees only happens if both `rsync` runs succeeded |
 | `ZFS scrub` | A daily check inside TrueNAS finds the last scrub to be less than 55 days old |
 | `TrueNAS uptime` | The guest reports an uptime above 30 minutes, meaning it has not just restarted |
+| `VPN tunnel (gluetun)` | gluetun reports healthy, qBittorrent is running, and gluetun has recorded a public IP |
 
 ### Detecting a restart nobody asked for
 
@@ -191,6 +210,32 @@ The logic is inverted like the others: it pushes **only when uptime is above 30 
 A silent guest agent produces exactly the same silence as a restart, and the monitor cannot tell the two apart. For an agent that genuinely fails to answer that is acceptable, because a TrueNAS in that state is news either way.
 
 It is **not** acceptable for the third case, which this document originally failed to consider and which then cost an hour on 01/09: the script never managing to *ask* the question at all. A dead man's switch is structurally incapable of reporting its own defects, so the defect has to leave a trace somewhere else. That is why stderr from the guest agent call is appended to `/var/log/monitor-push.err` instead of being discarded. **When this monitor fires, that file is the first thing to read**, before touching TrueNAS at all.
+
+### Watching the tunnel, and the two checks that would have lied
+
+Added 03/09/2026, after the media stack sat dead for ten days without anything noticing, because nothing was pointed at it.
+
+**The obvious check is the wrong one.** qBittorrent's web interface is published on port 8080 and answers to a plain HTTP monitor. It also **keeps answering with the tunnel down**, because the published port forward works regardless and the kill switch blocks outbound traffic, not inbound. A monitor on 8080 would sit green through exactly the failure it was built to catch, which is the same shape as `showmount` answering while `nfsd` was dead in August.
+
+**The second obvious check is worse than useless.** gluetun has an HTTP control server on port 8000 that reports tunnel state directly. Publishing it would put an API that can stop the VPN onto the flat network, which is a poor trade for a status page.
+
+So the check reads three things from inside, through one `pct exec`, and pushes only if all three hold: gluetun **healthy**, qBittorrent **running**, and a **public IP recorded** in the file gluetun maintains at `/tmp/gluetun/ip`. Reading that file costs no external request. gluetun's own health check is already a tunnel test, since it reaches `cloudflare.com:443` and `github.com:443` *through* the tunnel and the kill switch means that can only pass while the tunnel is up.
+
+The exit IP travels in the message, so Uptime Kuma keeps a history of which address the downloads were leaving from at any given time.
+
+**One detail in that block is the whole reason it can be trusted.** Each of the three commands ends in `|| echo none`. Without it, a failing `docker inspect` prints nothing to stdout, three fields become two, and `awk '{print $1}'` starts reading qBittorrent's state as if it were gluetun's health. The monitor would go green at the exact moment the container vanished. It is the same class of silent defect as the cron `PATH` bug of 01/09: not a check that reports a wrong answer, but a check that quietly stops asking the right question.
+
+### The boundary of the tunnel, as a decision
+
+Recorded here because it was previously true but written down nowhere, which means it could not be told apart from an accident.
+
+**Only `qbittorrent` runs inside gluetun's network namespace.** `sonarr`, `radarr`, `prowlarr` and `jellyseerr` sit on the ordinary `arr_default` bridge and reach the download client through gluetun's published port at `http://gluetun:8080`.
+
+That covers the exposure that actually matters: **BitTorrent announces your address to every peer in the swarm**, so the torrent client is the one component whose traffic is broadcast to strangers by design. Sonarr and Radarr talk to Prowlarr, to the download client, and to metadata services, none of which is sensitive in the same way.
+
+The deliberate residue is that **Prowlarr's indexer queries leave on the home address**. There are arguments both ways, which is why it is a decision rather than an oversight: private trackers frequently react badly to VPN ranges, and address consistency counts toward account standing; against that, the queries reveal what is being searched for, tied to the home address. It stands as it is until there is a reason to change it.
+
+`qbittorrent` also carries `depends_on: gluetun: condition: service_healthy` (added 03/09/2026). The short `depends_on: - gluetun` form waits only for the container to **start**, leaving a window in which the client comes up against a tunnel that does not exist. Note what this does and does not buy: it is a **startup ordering guarantee only**, and does nothing if gluetun sickens later while everything is already running. What protects then is the kill switch, which held for twenty-one hours during the outage of 03/09 without a single packet escaping.
 
 ### Why the checks run in that order
 
@@ -250,10 +295,18 @@ iostat -x 5 3 sdb; ps -eo stat,comm --no-headers | awk '$1 ~ /^D/' | wc -l
 **`TrueNAS uptime` red** has two causes that look identical from Uptime Kuma and call for opposite responses. One command separates them:
 
 ```bash
-tail /var/log/monitor-push.err; qm guest exec 102 -- /bin/cat /proc/uptime
+journalctl -t monitor-push --since today; qm guest exec 102 -- /bin/cat /proc/uptime
 ```
 
 Anything in the error log means **the check is broken, not TrueNAS**. An empty log plus a command that answers normally means the restart was real, and the next place to look is `journalctl --list-boots` inside the guest.
+
+**`VPN tunnel (gluetun)` red** means one of three things failed, and one command tells you which:
+
+```bash
+pct exec 107 -- sh -c 'docker inspect --format "gluetun: {{.State.Health.Status}}" gluetun; docker inspect --format "qbittorrent: {{.State.Running}}" qbittorrent; docker logs --tail 20 gluetun'
+```
+
+`unhealthy` with `AUTH_FAILED` in the logs is **not necessarily a credentials problem**, which is the trap that cost an evening on 03/09: NordVPN retires servers, gluetun only refreshes its embedded server list when `UPDATER_PERIOD` says so, and a retired server that still answers but authorises nobody produces exactly that message. Pull a fresh image before touching any credential.
 
 **Both red at once** is the full cascade. The recovery runbook is in `SECRETS.md`, under "Very high load with the disk idle".
 
@@ -272,4 +325,6 @@ Anything in the error log means **the check is broken, not TrueNAS**. An empty l
 - 01/09/2026: **and the first thing the working monitor reported was a restart nobody had seen**. With the check finally running, the guest's `/proc/uptime` read 25h50m while the QEMU process had been up for seven days: **TrueNAS restarted itself on 30/08 at roughly 21:50 UTC**, and at the time nothing noticed. Precisely the scenario the monitor exists for. The count in this entry originally said "third restart", which the forensics then corrected: **two** spontaneous restarts since the 24/08 fixes, on 29 and 30 August, the earlier boots of the 29th showing no kernel distress and therefore belonging to something outside the guest. The root cause is still open, tracked in `CHECKLIST.md`.
 - 01/09/2026: **what the monitor bought, on its first working night**. The restart it reported opened a forensic trail that would not otherwise have been walked, and the trail changed two beliefs. First, the failure of 18-24/08 **is** fixed: the cascades of RCU stalls with `txg_sync` and the `nfsd` threads blocked behind them stopped completely after the 24/08 changes, five days without one. Second, a different failure sits underneath: a single stall, a vCPU halted in `pv_native_safe_halt` waiting for a timer interrupt that never arrived, and an immediate self-restart, twice, in the same three-minute window on consecutive days. A halted vCPU is the hypervisor's responsibility, so this one is not a TrueNAS problem at all. Worth recording here rather than only in `CHECKLIST.md` because it is the argument for the whole document: **the value of an alert is not the notification, it is the question it makes you ask while the evidence is still on disk.** Nobody would have read a guest's boot list from five days earlier without a red monitor pointing at it.
 - 03/09/2026: **swap added to the host heartbeat, and a five-second trap built for one specific fault**. `vm.swappiness` was lowered from Debian's default of 60 to 10, because on a hypervisor almost all anonymous memory is guest RAM: on a general-purpose machine trading idle anonymous pages for page cache is a good bargain, but a guest cannot see or compensate for its own pages living on a disk, and roughly 1GB of guest memory was doing exactly that. A host reboot the same day cleared swap entirely, which turned an argument into an experiment: with the heartbeat now carrying `swap=` every minute, Uptime Kuma records on its own whether swap refills once the ARC has grown back. If it stays near zero the swappiness default was the whole problem; if it climbs back past a gigabyte the machine is genuinely short of memory. Either answer is worth more than the opinion it replaces.
+- 03/09/2026: **the media stack given a monitor, after ten days of dying unwatched**. `VPN tunnel (gluetun)` is the fifth push check, and choosing what it reads was most of the work. qBittorrent's web interface on port 8080 was the obvious target and would have been a **false green**, because a published port keeps answering with the tunnel down: the kill switch blocks what leaves, not what arrives. gluetun's own control server on port 8000 reports the truth but publishing it would expose an API that can stop the VPN. So the check reads gluetun's health, qBittorrent's state and the public IP gluetun records to a file, all through one `pct exec`, and pushes only when all three hold. The exit IP rides in the message so Uptime Kuma keeps a history of where the downloads were leaving from. **The `|| echo none` on each of the three commands is the part that makes it trustworthy**: without it a failing `docker inspect` prints nothing, three fields become two, and the check starts reading qBittorrent's state as gluetun's health, going green at the moment a container vanishes. Same class of defect as the cron `PATH` bug, and found by asking what the code does when its assumptions fail rather than when they hold.
+- 03/09/2026: **stderr moved from a flat file to the journal**, which sounds like tidying and was not. The error log added on 01/09 was already an improvement on `/dev/null`, but its first real use exposed the flaw: eight lines of `ipcc_send_rec failed` with **no timestamps**, so nothing in the file itself said whether this was last night's reboot or a fault in progress. Answering that took the file's mtime. Piping the cron job's stderr through `logger -t monitor-push` gets timestamps, rotation and a single place to look, and on Proxmox 9 the journal is where everything else already is, since `/var/log/syslog` does not exist. **Evidence without a time is barely evidence.**
 
