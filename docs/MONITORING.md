@@ -182,7 +182,26 @@ The fields are chosen to test one hypothesis: that pages of the QEMU process are
 
 **Reading it the morning after** is a two-step job, because the host's log cannot tell you on its own whether the fault occurred: the guest reboots inside a QEMU process that survives, so nothing in the host's view changes. First ask the guest whether it restarted (`journalctl --list-boots`), then look up that time in the trap log.
 
-Remove it once the fault is understood. An instrument built for one question should not outlive the question.
+**First run, 03/09/2026: the fault did not recur, and the instrument answered a different question instead.** The guest's boot list showed a single transition since 30/08, and its timestamps in PDT match to the minute the host shutdown of 02/09 at 23:25 UTC and the boot at 00:10 UTC, which is the forty-five minutes the case was open to inspect the memory modules. No spontaneous restart. That is the likeliest outcome five days after an event that happened twice, and it is not a reason to stand the trap down.
+
+What it did catch belongs to the other open question. Across its 35-minute window, while the gluetun outage was being fixed in the same session:
+
+```
+                21:25:01     21:59:57
+swap                66M         857M
+pswpout          17 840      237 607     +219 767 pages, about 858MB written
+pswpin            7 248       64 153      +56 905 pages, about 222MB read back
+psi_io            0.00         7.93
+vm102_rss        7938M        7938M       the ARC had already refilled
+```
+
+In the following 35 minutes, with the work finished, `pswpout` advanced by **171 pages**. A factor of roughly thirteen hundred. **The swapping was driven by the machine's own maintenance, not by a continuous leak**, which is a more precise and more useful answer than either of the two the experiment set out to choose between.
+
+Both original hypotheses turned out to be partly right. There was a bad kernel trade-off, since `swappiness` at Debian's default of 60 spends guest RAM to buy page cache and a guest can neither see nor compensate for that; lowering it to 10 stopped the machine swapping at rest. And there is genuinely not enough memory, because 2.5GB of headroom disappears the moment any real work starts. `swappiness` cannot create memory that is not there.
+
+One residue worth noting: around 800MB of process memory is still on disk and comes back only as pages are touched, roughly 50MB per half hour. Until then those processes are running degraded, every access being a read from the disk that is this platform's weakest component.
+
+Remove it once the vCPU stall is understood. An instrument built for one question should not outlive the question, and this one has not answered its own yet.
 
 ## The monitors
 
