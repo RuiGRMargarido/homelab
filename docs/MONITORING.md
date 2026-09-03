@@ -108,11 +108,12 @@ push() {  # $1=token  $2=msg  $3=ping
 LOAD1=$(cut -d' ' -f1 /proc/loadavg)
 AVAIL=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
 PSI=$(awk '/^full/{split($3,a,"="); printf "%.1f", a[2]}' /proc/pressure/io)
+SWAP=$(awk '/^SwapTotal/{t=$2}/^SwapFree/{f=$2}END{printf "%d", (t-f)/1024}' /proc/meminfo)
 
 if awk -v v="$LOAD1" -v m="$MAX_LOAD"      'BEGIN{exit !(v<m)}' \
 && [ "$AVAIL" -gt "$MIN_AVAIL_MB" ] \
 && awk -v v="$PSI"   -v m="$MAX_PSI_FULL" 'BEGIN{exit !(v<m)}'; then
-  push "$HOST_TOKEN" "load=${LOAD1} avail=${AVAIL}MB psi=${PSI}%" "$LOAD1"
+  push "$HOST_TOKEN" "load=${LOAD1} avail=${AVAIL}MB psi=${PSI}% swap=${SWAP}MB" "$LOAD1"
 fi
 
 # --- 2. NFS mounts: a real directory read, with a hard timeout ---
@@ -142,6 +143,28 @@ Scheduled as:
 ```
 * * * * * /usr/bin/flock -n /run/monitor-push.lock /usr/local/bin/monitor-push.sh
 ```
+
+**Swap is in the message rather than only in a threshold** (added 03/09/2026), because it is currently evidence in an open investigation rather than an alarm condition. See "The trap" below.
+
+## The trap (03/09/2026, temporary)
+
+Not monitoring in the ordinary sense: a deliberately narrow instrument built to catch one specific fault in the act.
+
+TrueNAS restarted itself on 29/08 at 21:41:46 and on 30/08 at 21:44:52 UTC, three minutes apart on consecutive days, and in a week containing exactly two such events that is hard to read as coincidence. The per-minute heartbeat is too coarse for it: the stall that killed the guest lasted around twenty seconds and would barely move a one-minute load average.
+
+`/usr/local/bin/trap-2143.sh` samples the host **every five seconds** across a 35-minute window, started by cron at 21:25 UTC, and appends one line per sample to `/var/log/trap-2143.log`:
+
+```
+09-03 00:20:12 load=0.20 avail=7296M swap=0M psi_io=0.00 psi_mem=0.00 psi_cpu=0.01                pswpin=4 pswpout=4 vm102_rss=2762M vm102_swap=0M
+```
+
+The fields are chosen to test one hypothesis: that pages of the QEMU process are being paged out, and a timer interrupt could not be delivered because the host was faulting them back from a busy disk. A jump in `pswpin`, or `vm102_swap` climbing in the minutes before, would move that from hypothesis to finding.
+
+**It was tested before being trusted**, by running it under `timeout` and checking that every field was populated. That habit comes from the `PATH` bug of 01/09, where a check that had never once run looked healthy for a day. An empty field on the night the machine dies is evidence lost.
+
+**Reading it the morning after** is a two-step job, because the host's log cannot tell you on its own whether the fault occurred: the guest reboots inside a QEMU process that survives, so nothing in the host's view changes. First ask the guest whether it restarted (`journalctl --list-boots`), then look up that time in the trap log.
+
+Remove it once the fault is understood. An instrument built for one question should not outlive the question.
 
 ## The monitors
 
@@ -248,4 +271,5 @@ Anything in the error log means **the check is broken, not TrueNAS**. An empty l
 - 01/09/2026: **the restart monitor was itself broken, and how it broke is the more useful lesson**. `TrueNAS uptime` had never once fired from cron. Every green beat it ever showed came from a manual test run, which is why it looked healthy for a whole day and why its uptime figure sat at 4.57%. The cause was mundane: `qm` lives in `/usr/sbin`, cron runs with `PATH=/usr/bin:/bin`, and the `2>/dev/null` on that line threw away the `command not found` that would have answered the question in one glance. Three hypotheses were tried and killed by measurement before that one: the guest agent starved by the concurrent backup (it answered in 1.2 seconds), the `sed` parser (it returned the right number), and `flock` contention (no run was ever stuck, and the whole script completed in 1.2 seconds). What separated the cases was running the script under cron's own environment rather than a login shell, `env -i PATH=/usr/bin:/bin /usr/local/bin/monitor-push.sh`, which failed instantly. Fixed with an explicit `PATH` at the top of the script and an absolute path on `qm`, and stderr from that call now appends to `/var/log/monitor-push.err` so the next broken check leaves evidence instead of silence. The uncomfortable part: the identical mistake had been made and corrected in the TrueNAS scrub cron job hours earlier, where `/usr/sbin/zpool` and `/usr/bin/curl` were spelled out from the start. **A lesson applied in one place and not carried to the neighbouring one is not yet a lesson.**
 - 01/09/2026: **and the first thing the working monitor reported was a restart nobody had seen**. With the check finally running, the guest's `/proc/uptime` read 25h50m while the QEMU process had been up for seven days: **TrueNAS restarted itself on 30/08 at roughly 21:50 UTC**, and at the time nothing noticed. Precisely the scenario the monitor exists for. The count in this entry originally said "third restart", which the forensics then corrected: **two** spontaneous restarts since the 24/08 fixes, on 29 and 30 August, the earlier boots of the 29th showing no kernel distress and therefore belonging to something outside the guest. The root cause is still open, tracked in `CHECKLIST.md`.
 - 01/09/2026: **what the monitor bought, on its first working night**. The restart it reported opened a forensic trail that would not otherwise have been walked, and the trail changed two beliefs. First, the failure of 18-24/08 **is** fixed: the cascades of RCU stalls with `txg_sync` and the `nfsd` threads blocked behind them stopped completely after the 24/08 changes, five days without one. Second, a different failure sits underneath: a single stall, a vCPU halted in `pv_native_safe_halt` waiting for a timer interrupt that never arrived, and an immediate self-restart, twice, in the same three-minute window on consecutive days. A halted vCPU is the hypervisor's responsibility, so this one is not a TrueNAS problem at all. Worth recording here rather than only in `CHECKLIST.md` because it is the argument for the whole document: **the value of an alert is not the notification, it is the question it makes you ask while the evidence is still on disk.** Nobody would have read a guest's boot list from five days earlier without a red monitor pointing at it.
+- 03/09/2026: **swap added to the host heartbeat, and a five-second trap built for one specific fault**. `vm.swappiness` was lowered from Debian's default of 60 to 10, because on a hypervisor almost all anonymous memory is guest RAM: on a general-purpose machine trading idle anonymous pages for page cache is a good bargain, but a guest cannot see or compensate for its own pages living on a disk, and roughly 1GB of guest memory was doing exactly that. A host reboot the same day cleared swap entirely, which turned an argument into an experiment: with the heartbeat now carrying `swap=` every minute, Uptime Kuma records on its own whether swap refills once the ARC has grown back. If it stays near zero the swappiness default was the whole problem; if it climbs back past a gigabyte the machine is genuinely short of memory. Either answer is worth more than the opinion it replaces.
 
