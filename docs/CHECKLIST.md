@@ -162,6 +162,8 @@ See [TOOLING.md §4-5](TOOLING.md#4-infrastructure-as-code) for the rationale be
 
 ## Phase 5 - Monitoring and alerting (brought forward 24/08/2026)
 
+- [ ] **Back up LXC 108's data** (noticed 08/09/2026) - the monitoring has no backup at all. Uptime Kuma keeps everything in the `uptime_kuma_data` Docker volume: the seven monitors and their thresholds, the push tokens, the Slack webhook configuration and the whole availability history. The same family of problem as the firewall configuration solved the same day, **small, hard to recreate and unprotected**, and found by accident while asking why a stray compose file sat on the host. Not urgent, since the tokens are in `SECRETS.md` and the monitors are rebuildable with patience. Kuma stores in SQLite, so a hot file copy can be inconsistent; the correct method is SQLite's own `.backup` command, which produces a coherent file with the application running
+
 See [TOOLING.md §3](TOOLING.md#3-monitoring-and-alerting---slack).
 
 **Repositioned twice by the decision of 24/08.** It was planned as a workload on k3s, which put it behind a RAM upgrade that is no longer scheduled, so it is **re-targeted at a small LXC with Docker** - Uptime Kuma needs a couple of hundred MB and nothing else. And it moved **up** in priority rather than down: running permanently mitigated workarounds on storage known to be fragile, with no alerting, is the largest remaining risk in the project.
