@@ -149,7 +149,7 @@ Reference for writing the restricted firewall rules that are still missing (see 
 |---|---|---|---|---|
 | 1 *(native, untagged)* | Home network | 192.168.1.0/24 | The firewall's WAN leg, the home PC and the rest of the household network | Active, but still hosting services that belong in Trusted |
 | 10 | DMZ | 10.10.10.0/24 | WireGuard (the internet-facing leg). Caddy only moves here once there is a decided app for public exposure | **Active and populated** (WireGuard) |
-| 20 | Trusted | 10.10.20.0/24 | TrueNAS `10.10.20.10`, Jellyfin `10.10.20.87`, Nextcloud (pending), k3s nodes and workloads | **Active and populated** (TrueNAS since 11/08/2026, Jellyfin since 08/09/2026) |
+| 20 | Trusted | 10.10.20.0/24 | TrueNAS `10.10.20.10`, Nextcloud `10.10.20.84`, Jellyfin `10.10.20.87`, k3s nodes and workloads | **Active and populated** (TrueNAS 11/08/2026, Jellyfin and Nextcloud 08/09/2026) |
 | 30 | Management | 10.10.30.0/24 | Proxmox UI/API, switch management, SSH to the nodes | **Active** (Proxmox); the switch is still on the flat network |
 | - | WireGuard tunnel | 10.10.40.0/24 | **Not a switch VLAN** - a virtual subnet living only inside the WireGuard container, handed to already-authenticated clients | Active (2 peers) |
 
