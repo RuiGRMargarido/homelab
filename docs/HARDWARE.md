@@ -97,6 +97,10 @@ Every line was checked against what the machine reports about itself rather than
 
 **The specification is readable off the machine itself.** `dmidecode -t memory` answers every row above, and the row people miss is `Total Width` against `Data Width`: 72 against 64 means ECC, 64 against 64 means not. Free returns are worth the premium over the used market here, because a module that fails `memtest86+` can go back.
 
+**Installed 08/09/2026, and it worked first time.** DIMM1 carries the 16GB module and DIMM2 one of the original 8GB, both reporting `Configured Memory Speed: 2666 MT/s`, with `memtest86+` clean across a full pass. Total usable **23GiB**, available memory **2.5GB before, 14GB after**, and swap from 7.8GB in use down to zero. The spare 8GB module is kept.
+
+**A GRUB trap worth knowing about here.** `grub-reboot memtest86+` looks like the tidy way to boot the test once without catching the menu, and on this machine it is not: it warns that the environment block lives on an LVM device, which means GRUB cannot clear the marker after using it, so "once" silently becomes "every boot" until cleared by hand with `grub-editenv /boot/grub/grubenv unset next_entry`. A headless server that boots into a memory test after a power cut, and stays there, is a bad way to find that out. Select the entry from the menu instead, which costs nothing because memtest runs before any network exists and needs a monitor and keyboard attached regardless.
+
 **Before trusting new memory, test it.** `memtest86+` is in the Proxmox GRUB menu; one full pass is the minimum. Bad RAM on a hypervisor corrupts guest data silently, and on a ZFS pool that surfaces weeks later as checksum errors with no obvious cause. Then confirm both slots are seen at the expected speed with `dmidecode -t memory`, and if the machine will not POST at all, swap the modules between slots: mixed-size configurations make some BIOSes fussy about which goes where, and this one has never been updated since 2018.
 
 ### Used mini PCs with 32GB, surveyed 03/09/2026
