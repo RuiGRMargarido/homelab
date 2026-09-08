@@ -191,6 +191,28 @@ See [TOOLING.md §2](TOOLING.md#2-documentation---obsidian).
 
 ## Open decisions (not tasks - they need a decision before becoming tasks)
 
+- [ ] **Whether to bring `mnt-mate` back as a VM, and what the media stack costs it** (added 09/09/2026, to decide **at the end of Phase 4**, once k3s has been measured rather than estimated). The upgrade to 24GB reopened a question closed on 24/08, but the arithmetic is tighter than it looks, and the numbers are recorded here so it does not have to be redone:
+
+  | | |
+  |---|---|
+  | Total usable | 23.4 GB |
+  | TrueNAS 8192 + OPNsense 3072 | **11.3 GB, before anything else exists** |
+  | Remaining containers, real usage | ~830 MB (caddy, wireguard, nextcloud, jellyfin, monitor) |
+  | Host | ~1 GB |
+  | **Left to distribute** | **~10 GB, between k3s and a development VM** |
+
+  ```
+  k3s 4 GB + mnt-mate 8 GB   = 12 GB   does not fit
+  k3s 4 GB + mnt-mate 6 GB   = 10 GB   fits with zero margin
+  k3s 3 GB + mnt-mate 6 GB   =  9 GB   1 GB of margin
+  ```
+
+  **The binding constraint is the two VMs, not the containers.** TrueNAS and OPNsense together are nearly half the machine before anything else runs. Getting 8GB for a development VM alongside k3s means cutting there: OPNsense from 3072 to 2048 is close to free, and TrueNAS from 8192 to 6144 costs read cache on a system whose disk is its weakest component. That second trade has been examined twice and set aside twice.
+
+  **Removing the *arr stack frees far less than it appears.** It costs **100MB idle**, and 3.4GB only while working, measured during the cascade of 03/09. Deleting it to fund an environment that runs once a day is a legitimate trade, but that is the trade, and it also discards one of the more interesting pieces here: download traffic in a network namespace with no interface of its own, structurally unable to leak, with twenty-one hours of dead tunnel proving it on 03/09.
+
+  **Preferred option (09/09/2026): keep the stack and keep it stopped**, starting it only when something needs downloading. The code stays, the write-up stays, and it consumes nothing while it sleeps. Note also that Ansible does not need this VM at all: `WORKFLOW.md` puts the control machine in WSL2 on the PC, so Phase 4 is not blocked by this either way.
+
 - [x] ~~**Which app goes into the DMZ zone** (publicly exposed via Caddy)~~ - **closed 04/09/2026: none, by decision.** Nothing will be published to the internet. See History. Original wording kept below for the record: (publicly exposed via Caddy) - with Nextcloud and Jellyfin decided as Trusted-only, the original goal of "exposing 1-2 apps on the internet" has no app attached until this is settled. **The how is already decided** (11/08/2026): it will be a **separate Caddy instance, in the DMZ**, not the one that exists today. A single instance serving both the public app and the internal services would need a foot in each zone, and would become exactly the bridge the segmentation exists to prevent
 - [x] ~~**Network zone for the development VM**~~ - **closed 24/08/2026** as originally posed: VM 100 is leaving the hypervisor, so the question of which zone to give it here no longer applies. Open since 28/07/2026
 - [ ] **Network placement for the physical development machine** (added 24/08/2026, deliberately deferred) - the development environment moves to its own machine, connected by Ethernet to the TL-SG608E. The question the previous item asked has not gone away, it moved, and the constraints are now different: a physical host cannot be dropped into a zone with a virtual NIC and a `tag=` on the hypervisor. It needs either an **untagged switch port** on the household VLAN 1, which is simple and keeps it outside the homelab entirely, or a **tagged port** plus VLAN configuration on the machine's own interface, which puts it inside a zone but adds switch and OS configuration on both ends. Note the switch's dual role (see `NETWORK.md`): it carries the trunk to the OptiPlex *and* untagged household traffic, so the choice is not free of consequences for the rest. To be discussed when the machine actually exists
