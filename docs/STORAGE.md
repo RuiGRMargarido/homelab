@@ -133,7 +133,7 @@ Since 11/08/2026 there is a fifth consideration: TrueNAS lives in the Trusted zo
 | Nextcloud database (MariaDB) | Docker volume on the LXC 104 disk | **Yes**, daily dump since 01/09/2026, 7 versions kept |
 | Jellyfin config and cache | Docker volumes on the LXC 105 disk | **No** |
 | VM and LXC disks | Proxmox's local 256GB SSD | **No** |
-| OPNsense configuration | inside VM 106 | **Manual only** - exported by hand 24/08/2026, automation still pending |
+| OPNsense configuration | inside VM 106 | **Yes**, daily at 03:30 since 08/09/2026, 30 versions kept in **two places**: `/var/backups/opnsense` on the host's internal disk and mirrored to the backup SSD |
 
 ### What this reveals
 
