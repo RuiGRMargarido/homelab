@@ -43,7 +43,7 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 |---|---|
 | 0. Hardware | Done. The RAM and SSD upgrades are conditional options with triggers, not scheduled work |
 | 1. Base services | **Done** and validated (TrueNAS, WireGuard, Caddy, Nextcloud, Jellyfin, backups) |
-| 2. VLANs and firewall | **In progress** (network built; WireGuard and TrueNAS migrated, three services to go) |
+| 2. VLANs and firewall | **In progress** (network built; WireGuard, TrueNAS, Nextcloud and Jellyfin migrated. Caddy remains, and the inter-zone rules are still permissive) |
 | 2b. Media automation | **Done** (hardware transcoding, *arr stack behind a VPN kill-switch) |
 | 3. Storage / RAID | **Conditional**, with documented triggers - not scheduled work |
 | 4. IaC and Kubernetes | Not started |

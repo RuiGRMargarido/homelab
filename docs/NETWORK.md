@@ -6,9 +6,9 @@ Quick-reference document: "how the network is put together", to consult at any m
 
 **About the formats**: the diagrams come in two formats, deliberately. The ones that change with every network change (current state, rule matrix, packet paths) stay in **Mermaid**, written directly in the markdown, because editing text is fast and needs no tooling. The ones that are stable and act as showcase pieces (target state, physical topology) are **hand-written SVG** under `diagrams/`, because Mermaid's automatic layout cannot align the firewall interfaces above the zones they serve, nor place the zones side by side. The trade is intentional: better looks where it counts, easier editing where things move often.
 
-## Diagram 1: current state (11/08/2026)
+## Diagram 1: current state (08/09/2026)
 
-The most important reading of this diagram: **the Trusted zone now protects something**. TrueNAS was migrated on 11/08/2026 and is the first service inside it, which means the data (all of it) is now on the right side of the firewall. The ones still to move (Caddy, Nextcloud, Jellyfin) remain on the flat network, alongside the PC and every other household device.
+The most important reading of this diagram: **the Trusted zone now holds every service that stores or serves data**. TrueNAS moved there on 11/08/2026 and was alone for four weeks; Jellyfin and Nextcloud joined it on 08/09/2026. What remains on the flat network is Caddy, which has no configuration yet and will be created directly in the right zone, and Uptime Kuma, which is there **on purpose**: to raise an alert it must reach the internet without depending on the firewall it watches.
 
 One practical consequence worth holding on to: storage now crosses the firewall. The host's NFS mounts leave the Management zone and enter Trusted (`clientaddr=10.10.30.2`, `addr=10.10.20.10`), instead of both sitting on the same flat network. It is the first time real data traffic passes through the segmentation.
 
@@ -22,11 +22,10 @@ flowchart TB
     ROUTER -- "VLAN 1, untagged" --> SW
     ROUTER -- "dedicated WAN leg" --> FWWAN
 
-    subgraph FLAT["Flat network · VLAN 1 · not yet segmented"]
+    subgraph FLAT["Flat network · VLAN 1 · household, Caddy, monitoring"]
         PVEA["Proxmox · old IP"]:::flat
         CADDY["Caddy"]:::flat
-        NC["Nextcloud"]:::flat
-        JF["Jellyfin"]:::flat
+        KUMA["Uptime Kuma · by design"]:::flat
         MNT["mnt-mate · dev"]:::flat
         PC["Home PC"]:::flat
     end
@@ -50,6 +49,8 @@ flowchart TB
     end
 
     subgraph TRUSTED["Trusted zone"]
+        NC["Nextcloud"]:::tru
+        JF["Jellyfin"]:::tru
         TN["TrueNAS · ZFS"]:::tru
     end
 
@@ -70,7 +71,7 @@ flowchart TB
 | Zones | |
 | ----- | -------------------------------------- |
 | ⬜ | Internet / router / switch |
-| 🟫 | Flat network · VLAN 1 · `192.168.1.0/24` - **still to be segmented** |
+| 🟫 | Flat network · VLAN 1 · `192.168.1.0/24` - Caddy and Uptime Kuma only, since 08/09/2026 |
 | 🟦 | Dedicated firewall (interfaces) |
 | 🟧 | DMZ · VLAN 10 · `10.10.10.0/24` |
 | 🟩 | Trusted · VLAN 20 · `10.10.20.0/24` |
@@ -298,7 +299,7 @@ Three uncomfortable readings the matrix makes obvious:
 
 - **The Management zone is currently the most powerful on the network**, not the most protected. The `MGMT → any` rule was created to unblock the Proxmox host and ended up giving it unrestricted access to everything. That is fine while only Proxmox lives there, and stops being fine the moment the switch (or anything else) joins the zone.
 - **The DMZ has full access to Trusted, Management and the flat network.** It is restricted to WireGuard's IP, which makes it acceptable for now, but "everything" ought to be a short list of ports. That is the difference between "my VPN works" and "my VPN only does what it needs to".
-- **The three arrows leaving the DMZ exist because the services are scattered.** While Nextcloud, Jellyfin and Caddy remain on the flat network, WireGuard needs to reach all four zones to be useful. As the migration to Trusted advances, rule 4 (DMZ → flat network) should shrink and eventually disappear: it is the simplest measure of whether the segmentation is genuinely happening.
+- **The three arrows leaving the DMZ exist because the services were scattered.** That is much less true since 08/09/2026: with Nextcloud and Jellyfin in Trusted, the DMZ needs Trusted and Management, and reaches the flat network only for Caddy and the household. Narrowing those three arrows is now a smaller job than it was.
 
 ### Rules still to be written (target)
 
@@ -399,7 +400,7 @@ General Wi-Fi, the guest network and any eventual IoT isolation stay **outside**
 
 ## Pending
 
-Which app goes into the DMZ zone, and the network zone for the future development/LLM-agents VM - see `docs/CHECKLIST.md` § Open decisions.
+**Closed 04/09/2026: nothing will be published to the internet**, so the DMZ holds WireGuard and nothing else. Still open: the network zone for the future development machine - see `docs/CHECKLIST.md` § Open decisions.
 
 ## History
 

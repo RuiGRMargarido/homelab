@@ -33,7 +33,7 @@ Goal: a single host for Proxmox + a TrueNAS VM, low power draw and low noise, wi
 ## Current choice (initial host)
 - Dell OptiPlex 3060 Micro (i5-8500T, 16GB, 256GB SSD): ordered for EUR 229 (19/02/2026).
   - Checklist on arrival: ~~confirm whether the SSD is NVMe (M.2) or SATA; confirm whether the RAM is 1x16GB or 2x8GB~~ - both answered, see below.
-  - Planned upgrades: 32GB RAM when needed; a larger SSD (512GB/1TB) as storage demands.
+  - ~~Planned upgrades: 32GB RAM when needed; a larger SSD (512GB/1TB) as storage demands.~~ **RAM done 08/09/2026: 24GB** (16+8), which was enough and left the full 32GB as an option rather than a need. The larger SSD stays conditional, triggered by `/var/lib/vz` going past roughly 80%.
 
 ### Measured configuration (03/09/2026, from `dmidecode` and `lsblk`)
 
