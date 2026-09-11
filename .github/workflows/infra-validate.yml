@@ -31,9 +31,9 @@ jobs:
     name: OpenTofu (fmt, init, validate)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: opentofu/setup-opentofu@v1
+      - uses: opentofu/setup-opentofu@v2
         with:
           tofu_version: 1.12.6
 
@@ -55,7 +55,7 @@ jobs:
     name: Ansible and manifests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Both steps below are guarded rather than assumed. These folders are
       # scaffolded and still empty, and a linter pointed at nothing either
