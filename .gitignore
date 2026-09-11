@@ -9,6 +9,31 @@ infra/secrets/
 *vault.yml
 *values-secret.yaml
 
+# Estado e caches do OpenTofu (acrescentado 11/09/2026, antes do primeiro apply).
+# O terraform.tfstate nao e uma cache: guarda todos os atributos de todos os
+# recursos geridos, em claro, incluindo o que venha de variaveis sensiveis.
+# Este repositorio e publico. Os ficheiros de plano guardam os mesmos valores.
+# O .terraform/ sao binarios de provider, centenas de MB que se voltam a obter.
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+tfplan.*
+.terraform/
+crash.log
+crash.*.log
+
+# Excecao deliberada: o lock e para versionar, e ele que fixa os hashes dos
+# providers e torna o init reproduzivel. Nada acima o apanha hoje; fica escrito
+# para que um futuro .terraform* nao o mate em silencio.
+!.terraform.lock.hcl
+
+# Credencial de administrador do cluster k3s, ao nivel do token do Proxmox.
+# Vive em ~/.kube/config, fora do repo; isto e a rede para o dia em que
+# alguem a copiar para ca por conveniencia.
+kubeconfig
+*.kubeconfig
+
 # Configuracao especifica do IDE (JetBrains) - nao pertence ao repo
 .idea/
 
