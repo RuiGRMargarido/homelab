@@ -278,6 +278,12 @@ In the original version the NFS check came first. Combined with `flock`, that me
 
 ### Scheduled jobs
 
+**Uptime Kuma notifies on state changes, not on failures**, and for a job that runs once a day that distinction is the difference between noticing and not. A monitor that goes red sends one alert and then stays quiet, because nothing further changes. Eleven consecutive nights of a broken backup produced **one** notification, on 05/09/2026, followed by silence that is indistinguishable from everything being fine.
+
+The fix is per-monitor: **Resend Notification if Down X times consecutively**, set to 1 on the three job monitors (`Backup diário`, `Backup config OPNsense`, `ZFS scrub`). With heartbeat windows measured in hours, that turns one forgettable alert into a daily one. The short-interval monitors do not need it, since a service that is down announces itself in other ways.
+
+**The defect was in how it was configured, not in the tool.** The original setup assumed that whoever receives an alert acts on it, and a watchdog cannot assume that. It has to keep insisting.
+
 These two catch what an availability check structurally cannot see. A job that **fails** produces an error; a job that **stops running** produces nothing at all, and silence is the only evidence there is.
 
 **The backup** was the easy one. The script already begins with `set -e`, so it aborts on the first error and never reaches the end. That makes a single `curl` on the last line an exact success condition, with no status checking needed - the control flow already encodes it.
