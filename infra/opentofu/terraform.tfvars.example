@@ -1,0 +1,32 @@
+# Template. Copy to terraform.tfvars, which is gitignored, and fill in the real
+# value. Never put the real value in this file: this one is committed.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# ---------------------------------------------------------------------------
+# The token is ONE single string, the id and the secret joined by "=".
+# ---------------------------------------------------------------------------
+#
+# It is not two separate fields, and it is not the id on its own. When it is
+# wrong the provider returns a 401 that does not say which half is at fault,
+# which is why this warning is longer than the line it describes.
+#
+#   correct:   "opentofu@pve!provider=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+#   wrong:     "opentofu@pve!provider"
+#   wrong:     "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+#
+# The real value is in docs/SECRETS.md, which exists only locally.
+#
+# The identity was created on 11/09/2026 with:
+#   pveum user token add opentofu@pve provider --privsep 0
+#
+# And is revoked, without touching the host root password, with:
+#   pveum user token remove opentofu@pve provider
+
+proxmox_api_token = "opentofu@pve!provider=PUT-THE-SECRET-HERE"
+
+# The two below have working defaults in variables.tf and only need setting
+# if something moves. Kept here so the file documents every input.
+#
+# proxmox_endpoint = "https://192.168.1.206:8006/"
+# proxmox_insecure = true
