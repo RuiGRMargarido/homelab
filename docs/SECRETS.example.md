@@ -20,6 +20,8 @@ For important passwords and tokens, the better place is a password manager (Bitw
 - [Monitoring (LXC 108)](#monitoring-lxc-108)
 - [History](#history)
 
+**Convention**: a cell that does not apply says `n/a`, never nothing. An empty cell cannot be told apart from one that is waiting to be filled.
+
 ## Base infrastructure
 
 | Service | URL / address | Username | Password |
