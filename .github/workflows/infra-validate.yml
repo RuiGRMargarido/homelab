@@ -1,0 +1,82 @@
+# Validation of everything under infra/, before anything is applied.
+#
+# There is deliberately no `tofu plan` here, and it is not an oversight.
+# These runners sit on the public internet; the Proxmox API sits on a private
+# LAN behind the OPNsense with no port forward. No credential fixes a missing
+# route, so a plan would need a self-hosted runner inside the network, which
+# is a separate decision with its own cost. What is left still catches the
+# mechanical errors, because fmt, validate and the linters are all offline.
+#
+# This does not replace code-review / security-review before a real apply.
+# The difference from CI over application code is the cost of a mistake: a
+# malformed change does not fail a test, it destroys a VM.
+
+name: infra validate
+
+on:
+  push:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra-validate.yml"
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra-validate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  opentofu:
+    name: OpenTofu (fmt, init, validate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.12.6
+
+      # Formatting first: it is the cheapest check and the one most likely to
+      # fire, and a diff-noisy repo hides the changes that matter.
+      - name: tofu fmt
+        run: tofu -chdir=infra/opentofu fmt -check -recursive
+
+      # -backend=false because there is no remote backend and no credentials
+      # here. It still downloads the provider, which is what validate needs in
+      # order to check resource and attribute names against the real schema.
+      - name: tofu init
+        run: tofu -chdir=infra/opentofu init -backend=false
+
+      - name: tofu validate
+        run: tofu -chdir=infra/opentofu validate
+
+  lint:
+    name: Ansible and manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Both steps below are guarded rather than assumed. These folders are
+      # scaffolded and still empty, and a linter pointed at nothing either
+      # fails for the wrong reason or passes without looking, and a job that
+      # passes without looking is worse than no job at all.
+      - name: ansible-lint
+        run: |
+          if [ -z "$(find infra/ansible -name '*.yml' -o -name '*.yaml' 2>/dev/null)" ]; then
+            echo "No playbooks or roles under infra/ansible yet. Nothing to lint."
+            exit 0
+          fi
+          pipx install ansible-lint
+          ansible-lint infra/ansible
+
+      - name: kubeconform
+        run: |
+          if [ -z "$(find infra/kubernetes -name '*.yml' -o -name '*.yaml' 2>/dev/null)" ]; then
+            echo "No manifests under infra/kubernetes yet. Nothing to check."
+            exit 0
+          fi
+          curl -sSL -o kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar xf kubeconform.tar.gz kubeconform
+          ./kubeconform -summary -strict infra/kubernetes
