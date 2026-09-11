@@ -18,15 +18,16 @@ graph TB
     end
 
     subgraph OP["OptiPlex server (Proxmox)"]
-        PVM["Bare VMs<br/>TrueNAS, WireGuard, Caddy, dedicated firewall"]
-        K3S["k3s cluster<br/>Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana"]
+        PVM["Bare VMs and LXCs<br/>TrueNAS, WireGuard, Caddy, dedicated firewall"]
+        UK["LXC 108 monitor<br/>Uptime Kuma, deliberately outside k3s"]
+        K3S["k3s cluster<br/>Jellyfin, Nextcloud, Prometheus/Grafana"]
     end
 
     SL[Slack<br/>receives the alerts]
 
     PC -- "push / pull" --> GH
     PC -- "local network: SSH + Proxmox API + k3s API" --> OP
-    K3S -- "alert via webhook (Uptime Kuma)" --> SL
+    UK -- "alert via webhook" --> SL
 ```
 
 > Network architecture (VLANs, zones, dedicated firewall) is not in this diagram - it has its own document, `NETWORK.md`. This one stays on the "PC vs OptiPlex" view.
@@ -38,15 +39,15 @@ graph TB
 | Git | Keeping the history of every change (code, configs, notes) | **Your PC** (repo cloned at `Documents\GitHub\homelab`) |
 | GitHub | Cloud backup of the repo plus a shareable history | **Cloud** (github.com) - your PC pushes and pulls |
 | Obsidian | Reading and editing the documentation more comfortably (links, tags, search) | **Your PC** (points at the same repo folder) |
-| OpenTofu | Creates and destroys VMs and LXCs on Proxmox from code files | **Your PC** - talks to the Proxmox API over the local network |
+| OpenTofu | Creates and destroys VMs and LXCs on Proxmox from code files | **Your PC** - talks to the Proxmox API at `192.168.1.206:8006`, the flat-network address, which is the only one reachable from here (see `CHECKLIST.md` Phase 4) |
 | Ansible | Configures the bare VMs (TrueNAS, WireGuard, firewall) and installs k3s itself on the dedicated node(s) | **Your PC** - connects over SSH to the VMs on the OptiPlex |
 | **k3s (Kubernetes)** | Runs the application services as *workloads* - Jellyfin, Nextcloud, monitoring - instead of one VM/LXC per service | **OptiPlex**, inside one or more VMs created by OpenTofu; k3s itself is installed by Ansible |
-| **kubectl / Helm** | Deploying and updating the application services inside k3s (manifests/Helm charts, `infra/kubernetes/`) | **Your PC** - talks to the k3s API over the local network |
+| **kubectl / Helm** | Deploying and updating the application services inside k3s (manifests/Helm charts, `infra/kubernetes/`) | **Your PC** - they are *clients*, they run nothing and store nothing, they just turn commands into HTTP requests to the k3s API on port 6443. Install `kubectl` deliberately rather than using the one Docker Desktop leaves in `PATH` |
 | Proxmox | The server's "operating system", runs the VMs and LXCs | **OptiPlex** (already installed) |
 | TrueNAS, WireGuard, Caddy, dedicated firewall | Services that run bare, outside k3s - TrueNAS because of disk passthrough; WireGuard and the firewall because they mediate the network zones; Caddy has not been migrated yet | **OptiPlex**, each in its own VM created by Proxmox |
 | Jellyfin, Nextcloud | Application services - media server and personal cloud | **OptiPlex**, as workloads inside k3s |
-| Uptime Kuma, Prometheus/Grafana | Watching whether the services above are alive, plus CPU/RAM/disk graphs | **OptiPlex**, as workloads inside k3s |
-| Healthchecks.io | Dead man's switch for scheduled jobs (backups, ZFS scrub) - catches the silent failures Uptime Kuma cannot see | **OptiPlex**, self-hosted (inside or outside k3s, still undecided) |
+| Uptime Kuma | Watching whether the services above are alive, and the dead man's switch for the scheduled jobs through Push monitors | **OptiPlex**, in its **own LXC (108)**, deliberately outside k3s - the watcher has to be simpler than what it watches |
+| Prometheus/Grafana | History and graphs of CPU/RAM/disk, which answers "why is this slow" rather than "is it up" | **OptiPlex**, as a workload inside k3s |
 | Slack | Where the alerts land (just an app/site, nothing to install in the homelab) | **Cloud** (slack.com) - the OptiPlex sends messages to it |
 
 ## The typical workflow, end to end
@@ -65,6 +66,7 @@ OpenTofu runs natively on Windows without trouble, but **Ansible does not run on
 
 ## History
 
+- 11/09/2026: corrected during the review of Phase 4. Three rows and the diagram were describing a plan that had been abandoned in August: Uptime Kuma was shown as a k3s workload when it has lived in LXC 108 since 31/08 precisely so the alerting does not depend on the cluster, and Healthchecks.io was still listed as a tool to install with its location "still undecided" when it had been dropped on 31/08. Added where the `kubectl` on this PC actually comes from, because it was inherited from Docker Desktop rather than chosen, and the Proxmox address OpenTofu has to use.
 - 18/07/2026: first version of this document, with the map of where each tool lives and the end-to-end workflow.
 - 29/07/2026: updated to reflect the adoption of k3s (decided 22/07/2026, see `TOOLING.md`) - this document had never been updated for it. The diagram, table and workflow now distinguish bare VMs (TrueNAS, WireGuard, dedicated firewall) from workloads inside k3s (Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana); `kubectl`/`Helm` enter as a tool and as their own step in the workflow, after Ansible.
 - 29/07/2026: documentation audit - Caddy was missing from the table and the diagram (it stays a bare VM, not yet migrated to k3s). Em dashes replaced by plain hyphens throughout.

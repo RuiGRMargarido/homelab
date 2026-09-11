@@ -4,7 +4,7 @@ Decision document. Covers: which Claude Code skills and plugins to adopt, docume
 
 ## 0. Decisions from that session
 - **Obsidian**: already in use on another project. Staying on the free tier, no paid Obsidian Sync. Synchronisation over Git.
-- **Monitoring**: self-hosted as soon as possible (Uptime Kuma + Healthchecks.io + Prometheus/Grafana from the start, not later on), alerting into Slack.
+- **Monitoring**: self-hosted as soon as possible (Uptime Kuma + ~~Healthchecks.io~~ + Prometheus/Grafana from the start, not later on), alerting into Slack. *Healthchecks was dropped on 31/08/2026, see §3; the rest of this section records what was decided on 18/07 and is left as written.*
 - **IaC**: adopt OpenTofu + Ansible right away, even this early into v2.
 - **Kubernetes**: application services (Jellyfin, Nextcloud, monitoring) move to a **k3s** cluster, rather than one isolated LXC/VM per service - see section 4.
 - **CI**: automatic IaC validation through GitHub Actions before any `apply` - see section 4.
@@ -36,7 +36,7 @@ Ready-made connectors (Slack, Obsidian) were searched for through Claude's "conn
 - **Free synchronisation over Git**: install the community plugin **obsidian-git** inside Obsidian (Settings → Community plugins). It gives you a commit/push/pull button and can run scheduled auto-backups. That syncs between devices without paying for Obsidian Sync - you just need the repo cloned on each machine or phone. Note (11/08/2026): `.obsidian/plugins/` is now gitignored, so on a new device the plugin has to be installed by hand once before the sync works.
 - **Recommended structure** (an evolution of what already exists, not a rewrite):
   - `Homelab.md` (root note / MOC - *Map of Content*) - replaces and expands the README as the entry point inside Obsidian, linking to the notes below.
-  - `docs/services/` - one note per service (Proxmox, TrueNAS, Jellyfin, WireGuard, Uptime Kuma, Healthchecks...), each with: current state, key configuration, link to the runbook.
+  - `docs/services/` - one note per service (Proxmox, TrueNAS, Jellyfin, WireGuard, Uptime Kuma, OPNsense...), each with: current state, key configuration, link to the runbook.
   - `docs/runbooks/` - recovery procedures per service ("if X fails, do Y"). Important for disaster recovery - documenting is not only `PROJECT_CONTEXT.md`, it is also "how do I restore this at 2am".
   - `docs/PROJECT_CONTEXT.md` stays as it is - the history and recent decisions already follow the shape of a decision log, which is a good habit worth keeping.
   - `docs/CHECKLIST.md` (created 22/07/2026) - done/pending status of every task, by phase; `PROJECT_CONTEXT.md` stopped duplicating this.
@@ -129,7 +129,8 @@ One limit to expect when Phase 4 reaches the item about codifying what already e
 ### CI: automatic IaC validation (GitHub Actions)
 
 Before any real `apply`, a GitHub Actions workflow runs on every PR or push touching `infra/`:
-- `tofu fmt -check` + `tofu validate` (and a read-only `tofu plan`, without apply credentials, if it can run against a plan workspace).
+- `tofu fmt -check` + `tofu validate`.
+- **Not `tofu plan`, and the reason is structural** (settled 11/09/2026). This line used to end with "and a read-only `tofu plan`, without apply credentials, if it can run against a plan workspace", which left open something that cannot be done: the runners sit on the public internet, the Proxmox API sits on a private LAN behind the OPNsense with no port forward, and no credential fixes the absence of a route. A `plan` would need a self-hosted runner inside the network, which is a different decision with its own cost. What is left still catches the mechanical errors, because `fmt`, `validate` and the linters are all offline operations.
 - `ansible-lint` over the playbooks and roles.
 - `kubeval`/`kubeconform` or `helm lint` over the manifests in `infra/kubernetes/`.
 
@@ -144,7 +145,7 @@ This does not replace `code-review`/`security-review` (still mandatory before ap
 3. IaC (scaffold): `infra/opentofu` + `infra/ansible` + `infra/kubernetes`, a dedicated API token on Proxmox, first VM (TrueNAS) provisioned from code.
 4. CI: a GitHub Actions workflow validating `infra/` (`tofu fmt`/`validate`, `ansible-lint`, `helm lint`) before even the first real `apply` - so it is born with the safety net.
 5. Kubernetes: provision one VM through OpenTofu + install k3s through Ansible (single-node cluster).
-6. Monitoring: `kube-prometheus-stack` (Prometheus+Grafana) and Uptime Kuma as workloads on k3s, wired to the Slack webhook; then self-hosted Healthchecks.io for the backup jobs.
+6. Monitoring: `kube-prometheus-stack` (Prometheus+Grafana) as a workload on k3s, wired to the Slack webhook. **Corrected 11/09/2026**: this step used to say "and Uptime Kuma as workloads on k3s... then self-hosted Healthchecks.io", and both halves had been overtaken. Healthchecks was dropped on 31/08 (see §3). And Uptime Kuma **stays in LXC 108**, where it has run since 31/08, because moving it into k3s would break the rule written three paragraphs above in this same document: whatever does the watching must be simpler, and depend on less, than what it watches. Putting the alerting inside the heaviest and newest thing in the project inverts that exactly, and `CHECKLIST.md` Phase 5 says so explicitly. Prometheus and Grafana are a different case: they are for history and graphs, not for the alert that has to arrive when everything else is on fire.
 7. Application services: migrate Jellyfin and Nextcloud to manifests/Helm on k3s, with storage pointing at TrueNAS.
 8. Claude Code: install the official Slack plugin and HashiCorp's Terraform skills; optionally the Obsidian MCP later on.
 
@@ -156,4 +157,5 @@ This does not replace `code-review`/`security-review` (still mandatory before ap
 ## History
 
 - 11/08/2026: translated to English. Two things were corrected in passing: a note claiming the repository is private (it went public on 11/08/2026), and a paragraph framing OpenTofu in terms of what recruiters look for, which was left over from an earlier cleanup and did not belong in a technical document.
+- 11/09/2026: **full review of Phase 4 before writing any code**, which corrected two things here. In §4, the CI step no longer leaves a `tofu plan` as a possibility: GitHub runners cannot reach a private LAN, so it was an invitation to waste an afternoon. In §5, step 6 was sending Uptime Kuma into k3s and still installing Healthchecks, both overtaken by decisions taken in August and both contradicting §3 of this document. The wider lesson is about decision documents rather than about tooling: a decision written in one section does not propagate to the execution order in another, and the execution order is the part people actually follow.
 - 11/09/2026: added "The Proxmox identity for OpenTofu" to section 4, recording the role actually created and, more usefully, the three privileges left out of it on purpose. The widely copied provider privilege list includes `Sys.Console`, which is a root shell on the hypervisor through the API; granting it would have left section 6's rule about never committing secrets as the only real protection.
