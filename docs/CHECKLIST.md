@@ -206,23 +206,28 @@ See [TOOLING.md §2](TOOLING.md#2-documentation---obsidian).
 
 ## Open decisions (not tasks - they need a decision before becoming tasks)
 
-- [ ] **Whether to bring `mnt-mate` back as a VM, and what the media stack costs it** (added 09/09/2026, to decide **at the end of Phase 4**, once k3s has been measured rather than estimated). The upgrade to 24GB reopened a question closed on 24/08, but the arithmetic is tighter than it looks, and the numbers are recorded here so it does not have to be redone:
+- [ ] **Whether to bring `mnt-mate` back as a VM, and what the media stack costs it** (added 09/09/2026, to decide **at the end of Phase 4**, once k3s has been measured rather than estimated). The upgrade to 24GB reopened a question closed on 24/08, but the arithmetic is tighter than it looks, and the numbers are recorded here so it does not have to be redone.
+
+  **Corrected 11/09/2026, and the correction changes the answer.** The figures below were the ones in force when this item was written and were already out of date the same day: both memory cuts it describes as *available trades* had actually been **made** on 09/09, and `qm list` on the host reports TrueNAS at 6144 and OPNsense at 2048, not 8192 and 3072. Found by accident while asking the host an unrelated question for Phase 4, which is the usual way: nothing looks wrong in a table that is never checked against the machine.
+
 
   | | |
   |---|---|
   | Total usable | 23.4 GB |
-  | TrueNAS 8192 + OPNsense 3072 | **11.3 GB, before anything else exists** |
+  | TrueNAS 6144 + OPNsense 2048 | **8.0 GB, before anything else exists** |
   | Remaining containers, real usage | ~830 MB (caddy, wireguard, nextcloud, jellyfin, monitor) |
   | Host | ~1 GB |
-  | **Left to distribute** | **~10 GB, between k3s and a development VM** |
+  | **Left to distribute** | **~13.5 GB, between k3s and a development VM** |
 
   ```
-  k3s 4 GB + mnt-mate 8 GB   = 12 GB   does not fit
-  k3s 4 GB + mnt-mate 6 GB   = 10 GB   fits with zero margin
-  k3s 3 GB + mnt-mate 6 GB   =  9 GB   1 GB of margin
+  k3s 4 GB + mnt-mate 8 GB   = 12 GB   fits, 1.5 GB of margin
+  k3s 4 GB + mnt-mate 6 GB   = 10 GB   fits, 3.5 GB of margin
+  k3s 3 GB + mnt-mate 6 GB   =  9 GB   fits, 4.5 GB of margin
   ```
 
-  **The binding constraint is the two VMs, not the containers.** TrueNAS and OPNsense together are nearly half the machine before anything else runs. Getting 8GB for a development VM alongside k3s means cutting there: OPNsense from 3072 to 2048 is close to free, and TrueNAS from 8192 to 6144 costs read cache on a system whose disk is its weakest component. That second trade has been examined twice and set aside twice.
+  **The binding constraint was the two VMs, and it has already been relaxed.** This paragraph used to present both cuts as trades still available: OPNsense from 3072 to 2048 as close to free, and TrueNAS from 8192 to 6144 as costing read cache on a system whose disk is its weakest component, a trade "examined twice and set aside twice". **Both were taken on 09/09/2026**, and on measurement rather than caution: OPNsense was using 669MB of 3029, and TrueNAS was cut on its ARC statistics after days of real use. The history entries recorded it, the decision table did not, and for two days the decision rested on 3.3GB that had already been freed.
+
+  **So the option the table used to rule out is now the one that fits.** `k3s 4 GB + mnt-mate 8 GB` was written as "does not fit" and has 1.5GB of margin. That does not decide anything on its own, because the whole point of deferring this to the end of Phase 4 is to measure k3s instead of estimating it, and a 4GB estimate is exactly the kind of number this correction is a warning about. What changed is that the decision is no longer arithmetically blocked.
 
   **Removing the *arr stack frees far less than it appears.** It costs **100MB idle**, and 3.4GB only while working, measured during the cascade of 03/09. Deleting it to fund an environment that runs once a day is a legitimate trade, but that is the trade, and it also discards one of the more interesting pieces here: download traffic in a network namespace with no interface of its own, structurally unable to leak, with twenty-one hours of dead tunnel proving it on 03/09.
 
