@@ -17,6 +17,7 @@ For important passwords and tokens, the better place is a password manager (Bitw
 - [API tokens and keys](#api-tokens-and-keys)
 - [Key files](#key-files-never-inline-the-contents-here-only-the-path)
 - [Datasets and important paths](#datasets-and-important-paths)
+- [Monitoring (LXC 108)](#monitoring-lxc-108)
 - [History](#history)
 
 ## Base infrastructure
@@ -49,20 +50,6 @@ Central table with one main access per service. For services with more than one 
 | Uptime Kuma | http://\<ip\>:3001 | | | - |
 | k3s (kubectl) | *(see kubeconfig, path below)* | | | - |
 | GitHub | github.com/\<user\>/\<repo\> | | *(handled by Git Credential Manager, no need to keep it here)* | - |
-
-### Uptime Kuma push tokens
-
-Anyone holding one of these can forge a heartbeat, which means silencing an alarm. Treat them as credentials. Each is the last path segment of the monitor's push URL, visible under the monitor's Edit view.
-
-| Monitor | Token |
-|---|---|
-| NFS mounts (host) | |
-| Host health (Proxmox) | |
-| TrueNAS uptime | |
-| Backup diario (04:00) | |
-| ZFS scrub | |
-
-The Slack Incoming Webhook URL belongs here too, for the same reason: it posts to the channel on its own authority.
 
 ## \<Name of a service with multiple users or its own configuration\> (e.g. TrueNAS, Nextcloud, Jellyfin)
 
@@ -114,7 +101,8 @@ Include the service name in the heading (e.g. "User accounts (Nextcloud)"), so t
 
 | What | What it is for | Where it is / value |
 |---|---|---|
-| Proxmox API token (OpenTofu) | Phase 4 - lets OpenTofu create and manage VMs without using root@pam | |
+| Proxmox API token (OpenTofu) | Phase 4 - lets OpenTofu create and manage VMs without using root@pam | *(store it already assembled, `user@pve!tokenname=<secret>`, which is the string the provider expects. Shown once at creation and not recoverable)* |
+| Firewall API key + secret | Automated export of the firewall configuration | *(the pair also lives in a mode-600 file on the host; this table is the reference, not the only copy)* |
 | Slack Incoming Webhook | Alerts to #homelab-alerts | *(treat as a password - it is a bearer token)* |
 | Healthchecks.io (if applicable) | Pings from scheduled jobs | |
 
@@ -136,6 +124,40 @@ Include the service name in the heading (e.g. "User accounts (Nextcloud)"), so t
 | Homelab repo (on this PC) | |
 | Homelab repo (on the OptiPlex, if applicable) | |
 
+## Monitoring (LXC 108)
+
+| Field | Value |
+|---|---|
+| Where it runs | |
+| Created | |
+| Access | |
+| Image | |
+
+### Push tokens (treat as secrets)
+
+Anyone holding one of these can forge a heartbeat, which means silencing an alarm. Treat them as credentials. Each is the last path segment of the monitor's push URL, visible under the monitor's Edit view.
+
+| Monitor | Token |
+|---|---|
+| NFS mounts (host) | |
+| Host health (Proxmox) | |
+| TrueNAS uptime | |
+| Backup diario (04:00) | |
+| ZFS scrub | |
+
+The Slack Incoming Webhook URL belongs here too, for the same reason: it posts to the channel on its own authority.
+
+### The dead man's switch
+
+A push monitor that stops hearing from a scheduled job is the only thing that notices a job which never ran. Note that Uptime Kuma notifies on **state changes**, not on failures, so a daily job needs "Resend Notification if Down" or eleven bad nights produce one alert.
+
+| What | Where |
+|---|---|
+| Script | |
+| Schedule | |
+| Thresholds | |
+| Error log | |
+
 ## History
 
 - 29/07/2026: created this template and the matching `docs/SECRETS.md` (local, gitignored).
@@ -143,3 +165,4 @@ Include the service name in the heading (e.g. "User accounts (Nextcloud)"), so t
 - 31/07/2026: restructured again - static IP practice (not DHCP alone) for VMs and LXCs; services with several users now get their own section with a "User accounts" sub-table (the WireGuard "Peers" pattern), instead of repeated rows in the generic table.
 - 01/08/2026: "Administrative access per service" became the central table again (one row per service), right after "VMs and Containers", with an "All accounts" column linking to each service's sub-table. The "### User accounts" headings now include the service name in brackets.
 - 11/08/2026: translated to English; added the `ip6=manual` practice for new containers.
+- 11/09/2026: the push-token table moved out of "Administrative access per service" into its own `## Monitoring (LXC 108)` section, placed before History, which is where it sits in the real file; a dead-man's-switch sub-table joined it. The "API tokens and keys" table gained the format of the Proxmox token and a row for the firewall API key pair.

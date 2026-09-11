@@ -106,6 +106,26 @@ infra/
 
 **Discipline**: every infrastructure change goes through `code-review`/`security-review` before `tofu apply` / `ansible-playbook` / `kubectl apply`, and gets recorded in the `PROJECT_CONTEXT.md` history.
 
+### The Proxmox identity for OpenTofu
+
+Created 11/09/2026. Provisioning runs as `opentofu@pve`, never `root@pam`. The realm is the first line of defence: `pve` is Proxmox's internal user database, so the identity has **no Unix account, no shell and no SSH**. A credential that leaks out of a `.tfvars` file has nowhere to log in.
+
+The custom role `OpenTofuProv` is granted at `/` and propagates. There are two independent dials on what an identity can do, **which** privileges the role carries and **where** it is granted, and only the first was tightened: with no host-level privilege in the role, the root path grants no reach the role does not already imply.
+
+**What was deliberately left out**, against the privilege list that circulates in provider documentation:
+
+- `Sys.Console`, which grants console access to the *node*, that is a root shell on the hypervisor through the API. A token holding it makes the whole "never `root@pam`" rule decorative. Nothing needs it: the provider's SSH-dependent features use real SSH with a key, not the API console.
+- `Sys.Modify`, which permits rewriting the host's network configuration by API. Here that means the VLAN-aware bridge and the trunk to OPNsense, which took weeks to get right.
+- The four write-capable `VM.GuestAgent.*` privileges (`FileRead`, `FileWrite`, `FileSystemMgmt`, `Unrestricted`), which amount to arbitrary command execution inside every guest, strictly more power than root on the guests themselves. Only `VM.GuestAgent.Audit` is granted, which is what the provider uses to read a new VM's address.
+
+**Two privileges that older lists do not carry**, whose absence fails in ways that are hard to read: `SDN.Use`, because since PVE 8 attaching a NIC to a bridge goes through SDN and without it VM creation fails precisely at the network step; and `Sys.AccessNetwork`, because the provider downloads cloud images by URL.
+
+**`VM.Monitor` no longer exists in PVE 9**, and the first attempt failed on it. The list the host itself returns shows what replaced it: the coarse "talk to the machine's control channel" privilege was split into the five `VM.GuestAgent.*`. The reusable lesson is cheaper than the documentation: `pvesh get /access/roles/Administrator` enumerates every privilege valid on the **running** version, because that role by definition holds all of them. If an `apply` ever returns 403, the fix is to add the privilege the error names with `pveum role modify`, not to paste a broader list back in.
+
+The token is `opentofu@pve!provider` with `privsep 0`, so it carries the user's permissions instead of a second layer of intersection: the restriction that protects us is the role being narrow, and two layers saying the same thing only add places to get it wrong. It cannot log into the web interface, it appears under its own name in the task log, which finally separates "I did this" from "the automation did this", and it is revoked with `pveum user token remove opentofu@pve provider` without touching the host's root password.
+
+One limit to expect when Phase 4 reaches the item about codifying what already exists: VM 102's `args` is a direct passthrough of arguments to KVM, and Proxmox reserves parameters of that kind to `root@pam`. If that holds, `args` cannot be managed by this token and stays a documented manual step, which is a better outcome than meeting it as a permission error halfway through an `apply`.
+
 ### CI: automatic IaC validation (GitHub Actions)
 
 Before any real `apply`, a GitHub Actions workflow runs on every PR or push touching `infra/`:
@@ -136,3 +156,4 @@ This does not replace `code-review`/`security-review` (still mandatory before ap
 ## History
 
 - 11/08/2026: translated to English. Two things were corrected in passing: a note claiming the repository is private (it went public on 11/08/2026), and a paragraph framing OpenTofu in terms of what recruiters look for, which was left over from an earlier cleanup and did not belong in a technical document.
+- 11/09/2026: added "The Proxmox identity for OpenTofu" to section 4, recording the role actually created and, more usefully, the three privileges left out of it on purpose. The widely copied provider privilege list includes `Sys.Console`, which is a root shell on the hypervisor through the API; granting it would have left section 6's rule about never committing secrets as the only real protection.
