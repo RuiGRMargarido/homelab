@@ -39,12 +39,14 @@ resource "proxmox_virtual_environment_vm" "k3s_1" {
   description = "k3s single-node cluster. Managed by OpenTofu, infra/opentofu/k3s.tf"
   tags        = ["opentofu", "k3s"]
 
-  # Starts on its own after a host reboot, after every guest that exists today.
+  # Starts on its own after a host reboot. There is deliberately no `startup`
+  # block. Proxmox treats the boot order as host behaviour and requires
+  # Sys.Modify on / to set it, which is one of the privileges refused to this
+  # token on purpose; the first apply of 16/09 failed on exactly that. Nothing
+  # is lost: guests without an order always start after those that have one,
+  # which is where this node belongs anyway.
   on_boot = true
   started = true
-  startup {
-    order = 10
-  }
 
   # A node being destroyed needs no clean shutdown, and with the default a
   # destroy against a running VM waits for one.
