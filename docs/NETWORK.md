@@ -97,9 +97,10 @@ flowchart TB
 | Proxmox VE (host) | - | Flat network **and** Management | `https://192.168.1.206:8006` and `https://10.10.30.2:8006` | Management (keeping the old IP as a fallback) |
 | WireGuard | LXC 103 | **DMZ** | `10.10.10.10:51820/UDP` | *(migrated)* |
 | TrueNAS | VM 102 | **Trusted** | `https://10.10.20.10`, or `https://192.168.1.95:8443` from the home network | *(migrated)* |
+| k3s-1 (k3s node) | VM 109 | **Trusted** | `10.10.20.11:22` (SSH, user `ansible`, key only); the Kubernetes API on `:6443` once k3s is installed | *(born there, created by OpenTofu on 16/09/2026)* |
 | Caddy | LXC 101 | Flat network | `192.168.1.83:80` and `:443` | *(deferred - see `CHECKLIST.md`)* |
-| Nextcloud | LXC 104 | Flat network | `http://192.168.1.84:8080` | Trusted |
-| Jellyfin | LXC 105 | Flat network | `http://192.168.1.87:8096` | Trusted |
+| Nextcloud | LXC 104 | **Trusted** | `http://10.10.20.84:8080`, or `http://192.168.1.95:8080` from the home network | *(migrated 08/09/2026)* |
+| Jellyfin | LXC 105 | **Trusted** | `http://10.10.20.87:8096`, or `http://192.168.1.95:8096` from the home network | *(migrated 08/09/2026)* |
 | mnt-mate (dev) | VM 100 | Flat network | `192.168.1.212:22` (SSH) | *(undecided - see `CHECKLIST.md` §Open decisions)* |
 | VPN clients | - | Tunnel | `10.10.40.2` (phone), `10.10.40.3` (PC) | *(unchanged)* |
 
@@ -150,7 +151,7 @@ Reference for writing the restricted firewall rules that are still missing (see 
 |---|---|---|---|---|
 | 1 *(native, untagged)* | Home network | 192.168.1.0/24 | The firewall's WAN leg, the home PC and the rest of the household network | Active, but still hosting services that belong in Trusted |
 | 10 | DMZ | 10.10.10.0/24 | WireGuard (the internet-facing leg). Caddy only moves here once there is a decided app for public exposure | **Active and populated** (WireGuard) |
-| 20 | Trusted | 10.10.20.0/24 | TrueNAS `10.10.20.10`, Nextcloud `10.10.20.84`, Jellyfin `10.10.20.87`, k3s nodes and workloads | **Active and populated** (TrueNAS 11/08/2026, Jellyfin and Nextcloud 08/09/2026) |
+| 20 | Trusted | 10.10.20.0/24 | TrueNAS `10.10.20.10`, k3s-1 `10.10.20.11`, Nextcloud `10.10.20.84`, Jellyfin `10.10.20.87`, and later the k3s workloads | **Active and populated** (TrueNAS 11/08/2026, Jellyfin and Nextcloud 08/09/2026, k3s-1 16/09/2026) |
 | 30 | Management | 10.10.30.0/24 | Proxmox UI/API, switch management, SSH to the nodes | **Active** (Proxmox); the switch is still on the flat network |
 | - | WireGuard tunnel | 10.10.40.0/24 | **Not a switch VLAN** - a virtual subnet living only inside the WireGuard container, handed to already-authenticated clients | Active (2 peers) |
 
@@ -427,4 +428,4 @@ General Wi-Fi, the guest network and any eventual IoT isolation stay **outside**
   Two details worth keeping. The 100MB test kept returning zero bytes in a tenth of a second, which looks like a broken network and was **HTTP 403 from Cloudflare**, a limit on their own endpoint rather than anything local; the failure was only visible because `curl -sS` shows errors that `-s` swallows. And a 10MB download measured 42 MiB/s against 67 for 25MB and 50MB, because a quarter of a second is not enough for TCP to leave slow start. **Both failure modes look like a slow network and neither is one.**
 
   The powerline was not discarded: it moved to port 5, where it feeds a WiFi access point in another room. It still negotiates at 100 Mbit, which rarely limits a distant access point since the radio usually does that first. The switch port map also loses its two "to be confirmed" entries, resolved by reading the switch's own port table.
-
+- 16/09/2026: **k3s-1 added**, VM 109 at `10.10.20.11` in Trusted, the first machine created by OpenTofu rather than by hand, and the first to be born in its zone instead of migrated into it. In passing, **two rows of the services table were a week out of date**: Nextcloud and Jellyfin were still listed on the flat network with their old addresses, although the VLAN table in the same document had recorded their migration to Trusted on 08/09. Two tables describing the same fact drift apart as soon as only one of them is edited, which is an argument for fewer tables rather than more care.

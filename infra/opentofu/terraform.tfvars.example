@@ -28,7 +28,7 @@ proxmox_api_token = "opentofu@pve!provider=PUT-THE-SECRET-HERE"
 # Public SSH key for the `ansible` user on guests created by OpenTofu. Not a
 # secret, but tied to one machine. Generated in WSL2, where Ansible runs, with a
 # dedicated name so its purpose is obvious:
-#   wsl -d Ubuntu -- bash -lc "ssh-keygen -t ed25519 -N '' -C homelab-ansible -f ~/.ssh/homelab_ansible"
+#   wsl -d Ubuntu -- bash -lc "mkdir -p ~/.ssh && chmod 700 ~/.ssh && ssh-keygen -t ed25519 -N '' -C homelab-ansible -f ~/.ssh/homelab_ansible"
 # and printed for pasting here with:
 #   wsl -d Ubuntu -- bash -lc "cat ~/.ssh/homelab_ansible.pub"
 
