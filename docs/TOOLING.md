@@ -80,8 +80,8 @@ OpenTofu is used instead of HashiCorp's official Terraform for two reasons, thou
 
 Rather than one Ansible-configured LXC/VM per service (`jellyfin`, `nextcloud`, `monitoring`...), the application services run as workloads on a **k3s** cluster - a lightweight Kubernetes distribution built for exactly this scenario (single node or a few nodes, modest hardware). TrueNAS stays a dedicated VM: running it bare, outside the cluster, makes sense because of the disk passthrough.
 
-- **Provisioning**: OpenTofu creates the base VMs (e.g. 1-3 k3s nodes); Ansible installs k3s on them (a `k3s-server`/`k3s-agent` role, or the community `k3s-io/k3s-ansible` role).
-- **Services**: each service (Jellyfin, Nextcloud, Uptime Kuma, Prometheus/Grafana) becomes a manifest or Helm chart under `infra/kubernetes/`, applied with `kubectl apply` or `helm install` - no longer its own Ansible role per service.
+- **Provisioning**: OpenTofu creates the base VMs (e.g. 1-3 k3s nodes); Ansible installs k3s on them (a `k3s-server`/`k3s-agent` role, or the community `k3s-io/k3s-ansible` role). **Decided 16/09/2026: roles of our own**, `base` and `k3s_server` in `infra/ansible`, because a single node needs little enough to be read end to end, with the k3s version and the install script's checksum pinned in one place.
+- **Services**: each application service (Jellyfin, Nextcloud, Prometheus/Grafana) becomes a manifest or Helm chart under `infra/kubernetes/`, applied with `kubectl apply` or `helm install` - no longer its own Ansible role per service. Uptime Kuma is the deliberate exception and stays in LXC 108, see §5 step 6.
 - **Why now and not later**: adopting Kubernetes after five services are already running in hand-built LXCs means migrating all of them, and every migration is a chance to break something that worked. Getting in early, while the cost of redoing things is still low, is cheaper than getting in late. The homelab is also the right place to get it wrong: a bad configuration here carries no production cost.
 
 Proposed repo structure:
@@ -96,7 +96,7 @@ infra/
 │   ├── truenas-storage/   # StorageClass / PVs bound to TrueNAS (NFS/iSCSI)
 │   ├── jellyfin/          # manifests or Helm chart values.yaml
 │   ├── nextcloud/
-│   └── monitoring/        # kube-prometheus-stack (Prometheus+Grafana) + Uptime Kuma
+│   └── monitoring/        # kube-prometheus-stack (Prometheus+Grafana); Uptime Kuma stays in LXC 108
 └── secrets/           # never committed in plain text (see below)
 ```
 
@@ -116,7 +116,7 @@ The custom role `OpenTofuProv` is granted at `/` and propagates. There are two i
 
 - `Sys.Console`, which grants console access to the *node*, that is a root shell on the hypervisor through the API. A token holding it makes the whole "never `root@pam`" rule decorative. Nothing needs it: the provider's SSH-dependent features use real SSH with a key, not the API console.
 - `Sys.Modify`, which permits rewriting the host's network configuration by API. Here that means the VLAN-aware bridge and the trunk to OPNsense, which took weeks to get right.
-- The four write-capable `VM.GuestAgent.*` privileges (`FileRead`, `FileWrite`, `FileSystemMgmt`, `Unrestricted`), which amount to arbitrary command execution inside every guest, strictly more power than root on the guests themselves. Only `VM.GuestAgent.Audit` is granted, which is what the provider uses to read a new VM's address.
+- The four `VM.GuestAgent.*` privileges beyond `Audit` (`FileRead`, `FileWrite`, `FileSystemMgmt`, `Unrestricted`), which between them read and write any file and run any command, as root, inside every guest that has the agent: more power than root on any single guest. Only `VM.GuestAgent.Audit` is granted, which is what the provider uses to read a new VM's address. **Verified 17/09/2026**, no longer only read in the documentation: with the agent enabled on VM 109, the state holds the addresses the agent reported, so `Audit` alone is enough. (This line used to call all four "write-capable", which `FileRead` is not; reading any file as root is dangerous enough on its own.)
 
 **Two privileges that older lists do not carry**, whose absence fails in ways that are hard to read: `SDN.Use`, because since PVE 8 attaching a NIC to a bridge goes through SDN and without it VM creation fails precisely at the network step; and `Sys.AccessNetwork`, because the provider downloads cloud images by URL.
 
@@ -138,13 +138,13 @@ Before any real `apply`, a GitHub Actions workflow runs on every PR or push touc
 
 This does not replace `code-review`/`security-review` (still mandatory before applying), but it catches mechanical errors (syntax, formatting, obvious bad practice) automatically and for free. The difference from CI over application code is the cost of a mistake: a malformed `tofu apply` does not fail a test, it destroys a VM.
 
-**First IaC task** (given the current state): provision the TrueNAS VM through OpenTofu, then provision one VM and install k3s on it through Ansible (a single-node cluster to begin with) - codifying what was already planned manually in Phase 1, but with Kubernetes as the destination for the services.
+**First IaC task**, in the order it actually ran: one VM created through OpenTofu with k3s installed on it through Ansible (a single-node cluster to begin with), preceded by a throwaway VM as the first `apply`; the TrueNAS VM is then **imported** into the state at the end of Phase 4, never provisioned. **Corrected 17/09/2026**: this paragraph used to open with "provision the TrueNAS VM through OpenTofu", the wording the Phase 4 review of 11/09 found to destroy the pool if obeyed literally, corrected in `CHECKLIST.md` that day and missed here.
 
 ## 5. Recommended execution order
 
 1. Obsidian: open the homelab repo as a vault, install `obsidian-git`, confirm sync works between devices.
 2. Slack: create the `#homelab-alerts` channel and an Incoming Webhook (requires workspace access).
-3. IaC (scaffold): `infra/opentofu` + `infra/ansible` + `infra/kubernetes`, a dedicated API token on Proxmox, first VM (TrueNAS) provisioned from code.
+3. IaC (scaffold): `infra/opentofu` + `infra/ansible` + `infra/kubernetes`, a dedicated API token on Proxmox, and a throwaway VM as the first `apply`. TrueNAS is imported into the state at the end of Phase 4, never provisioned (corrected 17/09/2026: this step used to say "first VM (TrueNAS) provisioned from code").
 4. CI: a GitHub Actions workflow validating `infra/` (`tofu fmt`/`validate`, `ansible-lint`, `helm lint`) before even the first real `apply` - so it is born with the safety net.
 5. Kubernetes: provision one VM through OpenTofu + install k3s through Ansible (single-node cluster).
 6. Monitoring: `kube-prometheus-stack` (Prometheus+Grafana) as a workload on k3s, wired to the Slack webhook. **Corrected 11/09/2026**: this step used to say "and Uptime Kuma as workloads on k3s... then self-hosted Healthchecks.io", and both halves had been overtaken. Healthchecks was dropped on 31/08 (see §3). And Uptime Kuma **stays in LXC 108**, where it has run since 31/08, because moving it into k3s would break the rule written three paragraphs above in this same document: whatever does the watching must be simpler, and depend on less, than what it watches. Putting the alerting inside the heaviest and newest thing in the project inverts that exactly, and `CHECKLIST.md` Phase 5 says so explicitly. Prometheus and Grafana are a different case: they are for history and graphs, not for the alert that has to arrive when everything else is on fire.
@@ -161,3 +161,4 @@ This does not replace `code-review`/`security-review` (still mandatory before ap
 - 11/08/2026: translated to English. Two things were corrected in passing: a note claiming the repository is private (it went public on 11/08/2026), and a paragraph framing OpenTofu in terms of what recruiters look for, which was left over from an earlier cleanup and did not belong in a technical document.
 - 11/09/2026: **full review of Phase 4 before writing any code**, which corrected two things here. In §4, the CI step no longer leaves a `tofu plan` as a possibility: GitHub runners cannot reach a private LAN, so it was an invitation to waste an afternoon. In §5, step 6 was sending Uptime Kuma into k3s and still installing Healthchecks, both overtaken by decisions taken in August and both contradicting §3 of this document. The wider lesson is about decision documents rather than about tooling: a decision written in one section does not propagate to the execution order in another, and the execution order is the part people actually follow.
 - 11/09/2026: added "The Proxmox identity for OpenTofu" to section 4, recording the role actually created and, more usefully, the three privileges left out of it on purpose. The widely copied provider privilege list includes `Sys.Console`, which is a root shell on the hypervisor through the API; granting it would have left section 6's rule about never committing secrets as the only real protection.
+- 17/09/2026: **the wording the Phase 4 review removed from `CHECKLIST.md` was still here, twice.** §4's "First IaC task" and §5 step 3 both still said to provision the TrueNAS VM from code, and §4 still listed Uptime Kuma as a k3s workload in two places, six days after the review of 11/09 corrected the same things elsewhere. All four now describe what was decided and the order that actually ran. Also recorded: the decision for Ansible roles of our own, and the verification that `VM.GuestAgent.Audit` alone lets the provider read a VM's addresses, which on 11/09 was a claim taken from documentation. The lesson of 11/09 held and was applied too narrowly: a correction made in one document does not reach the others, so a review has to search the whole repository for the wording rather than remember where it appeared.
