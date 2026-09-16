@@ -324,12 +324,24 @@ It is the **earliest of the three signals**. Load average is a consequence: it c
 **`NFS mounts` red** means at least one mount did not answer within 20 seconds. This is the August pattern, and the first command is the one that separates a saturated disk from a starved one:
 
 ```bash
-iostat -x 5 3 sdb; ps -eo stat,comm --no-headers | awk '$1 ~ /^D/' | wc -l
+iostat -x 5 2; ps -eLo stat,comm,wchan:32 --no-headers | awk '$1 ~ /^D/' | sort | uniq -c | sort -rn | head
 ```
 
-`sdb` near 100% is a capacity problem. **`sdb` at 0% with processes in `D` is a block above it**, in ZFS - and reading that as "the disk is fine" is what cost eleven days in August.
+Read the **second** `iostat` block; the first is an average since boot. And list every device rather than naming one: until 16/09/2026 this command read `iostat -x 5 3 sdb`, which is how that day's incident first looked like a storage problem. `sdb` near 100% is a capacity problem. **`sdb` at 0% with threads in `D` is a block above it**, in ZFS or in NFS - and reading that as "the disk is fine" is what cost eleven days in August. **But only if every other device is idle as well.** On 16/09 the pool disk was idle, the wait was real, and the I/O was on the NVMe, through the loop device holding the root filesystem of one container (`losetup -l` maps loop devices to containers). The wait channel separates the two cases before the disks do: threads waiting in `rpc_*` or `nfs_*` are waiting on the network, threads waiting in `folio_wait_bit_common` are waiting on a page, which is what memory pressure looks like.
 
-**`Host health` red** tells you which of the three thresholds broke, through the message in the monitor's history: it carries `load=`, `avail=` and `psi=`. That is why they are in the message rather than only in the graph.
+**`Host health` red** does **not** tell you which of the three thresholds broke, whatever this paragraph used to say (corrected 16/09/2026). The script pushes only when every check passes, silence being the alarm, so the red event carries no values at all: the message with `load=`, `avail=` and `psi=` exists only on the green heartbeats. The last green ones show the trend towards the failure, never the value that broke. For that, ask the host:
+
+```bash
+cat /proc/loadavg; free -m | awk 'NR==2{print "avail="$7"MB"}'; grep full /proc/pressure/io /proc/pressure/memory
+```
+
+**`Host health` red while `NFS mounts` stays green** is its own pattern, first met on 16/09/2026. Both come from the same script, so a green `NFS mounts` proves the script runs and the storage path answers: the host-health condition is genuinely false, for a reason that is not the storage. Check whether a **single container** is at its memory ceiling before anything else:
+
+```bash
+for id in $(pct list | awk 'NR>1 && $2=="running"{print $1}'); do echo "$id mem:$(awk '/full/{print $2}' /sys/fs/cgroup/lxc/$id/memory.pressure) io:$(awk '/full/{print $2}' /sys/fs/cgroup/lxc/$id/io.pressure)"; done
+```
+
+One container far above the others, while the host still shows gigabytes available, is a cgroup at its own limit. The kernel kills nothing in that state, because evicting code pages counts as progress even when they are faulted straight back in, so the container **looks alive and hangs** rather than dying and being restarted. The fix is a live change with no restart, `pct set <id> -memory <MB>`, and it doubles as the proof: if the diagnosis is right, the pressure inside the container falls to zero within seconds.
 
 **`TrueNAS uptime` red** has two causes that look identical from Uptime Kuma and call for opposite responses. One command separates them:
 
@@ -347,11 +359,12 @@ pct exec 107 -- sh -c 'docker inspect --format "gluetun: {{.State.Health.Status}
 
 `unhealthy` with `AUTH_FAILED` in the logs is **not necessarily a credentials problem**, which is the trap that cost an evening on 03/09: NordVPN retires servers, gluetun only refreshes its embedded server list when `UPDATER_PERIOD` says so, and a retired server that still answers but authorises nobody produces exactly that message. Pull a fresh image before touching any credential.
 
-**Both red at once** is the full cascade. The recovery runbook is in `SECRETS.md`, under "Very high load with the disk idle".
+**Both red at once** is the full cascade. The recovery runbook is in `SECRETS.md`, under "Very high load with the disk idle". Its title names the TrueNAS NFS as the cause, which held every time before 16/09/2026 and did not that day: run the per-container check above first, because a recovery aimed at TrueNAS would not have touched the actual problem.
 
 ## What is not covered yet
 
 - **History and graphs beyond Uptime Kuma's retention** - Prometheus and Grafana, deliberately deferred: it is the alerting that has value here, not the dashboards
+- **Memory pressure per container** - `Host health` reads the host, and on 16/09/2026 a container stuck at its own memory ceiling was caught only because it thrashed hard enough to spill into the I/O pressure of the host. One with less I/O behind it would stay invisible, since the host has memory to spare. Each LXC has its own `memory.pressure`, so this is one more check in the same script rather than a new tool. Tracked in `CHECKLIST.md` Phase 5
 
 ## History
 
@@ -368,3 +381,4 @@ pct exec 107 -- sh -c 'docker inspect --format "gluetun: {{.State.Health.Status}
 - 03/09/2026: **stderr moved from a flat file to the journal**, which sounds like tidying and was not. The error log added on 01/09 was already an improvement on `/dev/null`, but its first real use exposed the flaw: eight lines of `ipcc_send_rec failed` with **no timestamps**, so nothing in the file itself said whether this was last night's reboot or a fault in progress. Answering that took the file's mtime. Piping the cron job's stderr through `logger -t monitor-push` gets timestamps, rotation and a single place to look, and on Proxmox 9 the journal is where everything else already is, since `/var/log/syslog` does not exist. **Evidence without a time is barely evidence.**
 - 03/09/2026: **the first real incident, and the alerting worked**. The media stack, restored the same evening after ten days down, ran ten days of overdue library scans at once and took the host with it: `Host health` stopped sending heartbeats, `NFS mounts` went red, Nextcloud timed out at 48 seconds against a 77ms average, and the five-minute load reached 18.02 against a threshold of 20. Everything recovered once the container was stopped by hand. **The value of the monitoring here was not the notification, it was that the numbers it had been carrying all along explained the event**: pressure at `avg300` read 35.5% for memory against 18.4% for I/O, which is the reverse of every August incident and identifies this as a memory event rather than a disk one. Thresholds behaved as designed too, since `Host health` is the check that stops on load above 20, under 800MB available, or I/O pressure above 50%, and it was the first to go quiet. Worth recording as the moment the platform stopped depending on somebody happening to look, since the previous comparable failure ran for six days unnoticed.
 - 04/09/2026: **a monitor for the firewall, built the night it was needed**. OPNsense spent an hour unreachable from the VPN while answering the host perfectly, and no monitor covered it. The check is push, from the host, because the segmentation that makes the firewall worth having also makes it unreachable from where Uptime Kuma lives. It runs **second, before the NFS check**, since a dead firewall causes hanging NFS mounts and the test that identifies the cause must not queue behind the symptom. Total cycle with five checks: 1.9 seconds.
+- 16/09/2026: **the runbook pointed the wrong way, and the alerting did not.** `Host health` and `Jellyfin` went red together while every storage monitor stayed green, and the cause was LXC 105 at its 2GB memory ceiling during a 4K transcode (full account in `CHECKLIST.md` History). The alerting did its job: the load and I/O pressure thresholds both broke and the alert arrived. What failed was this document, twice. The `NFS mounts` rule read "`sdb` at 0% with processes in `D` is a block above it", and the pool disk was indeed idle, with the I/O on the NVMe through the loop device of a container, which the rule never looked at. And the `Host health` paragraph promised that the red event names the broken threshold, which the script cannot do, since it only pushes when everything passes. Corrected: `iostat` over every device instead of one, the wait channel as the first discriminator, a paragraph for the pattern of the day, and a warning where the `SECRETS.md` runbook title assumes the cause. A runbook is only really tested by an incident it did not anticipate.
