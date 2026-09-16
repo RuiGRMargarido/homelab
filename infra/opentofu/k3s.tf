@@ -102,11 +102,13 @@ resource "proxmox_virtual_environment_vm" "k3s_1" {
     type = "serial0"
   }
 
-  # Disabled on purpose for the first boot. The Debian cloud image does not
-  # ship qemu-guest-agent, and with the agent enabled the provider waits for it
-  # to report addresses that never come. Ansible installs it; enable it then.
+  # Enabled on 16/09/2026, once the Ansible `base` role had installed
+  # qemu-guest-agent. It was off for the first boot on purpose: the Debian cloud
+  # image does not ship the agent, and with it enabled the provider waits for
+  # addresses that never come. Turning it on adds a virtio serial device that
+  # only appears after a restart, so applying this reboots the VM.
   agent {
-    enabled = false
+    enabled = true
   }
 
   initialization {
