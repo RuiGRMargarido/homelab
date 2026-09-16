@@ -18,9 +18,11 @@ Everything here is documented as it was actually built, including the parts that
 | Hardware acceleration | Intel QuickSync passed through to an unprivileged LXC for Jellyfin transcoding |
 | Backups | `rsync` to external SSD plus a verified `mysqldump`, cron-scheduled, restore validated |
 | Monitoring | Uptime Kuma in its own LXC, push-based dead man's switches, alerts to Slack |
-| Planned | OpenTofu, Ansible, k3s, Prometheus + Grafana, GitHub Actions CI |
+| Infrastructure as Code | OpenTofu creating VMs through a least-privilege Proxmox API token, Ansible roles, validated by GitHub Actions CI |
+| Kubernetes | k3s, a single node on its own VM, built entirely from code; no workloads yet |
+| Planned | Prometheus + Grafana, moving Nextcloud and Jellyfin onto k3s |
 
-Hardware: Dell OptiPlex 3060 Micro (i5-8500T, 16GB RAM), 1TB HDD, 1TB external SSD for backups, TP-Link TL-SG608E managed switch.
+Hardware: Dell OptiPlex 3060 Micro (i5-8500T, 24GB RAM), 1TB HDD, 1TB external SSD for backups, TP-Link TL-SG608E managed switch.
 
 ## Network architecture
 
@@ -31,22 +33,22 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 | Zone | VLAN | Subnet | Contents |
 |---|---|---|---|
 | DMZ | 10 | `10.10.10.0/24` | WireGuard, the only service reachable from the internet |
-| Trusted | 20 | `10.10.20.0/24` | TrueNAS, Caddy, Nextcloud, Jellyfin |
+| Trusted | 20 | `10.10.20.0/24` | TrueNAS, Caddy, Nextcloud, Jellyfin, k3s |
 | Management | 30 | `10.10.30.0/24` | Proxmox web UI and API, switch management |
 | VPN tunnel | - | `10.10.40.0/24` | Virtual subnet, assigned to authenticated clients |
 
-**Note on the diagram above**: it shows the target state. The segmentation is built and working, and WireGuard, the Proxmox management interface and TrueNAS have been migrated. Caddy, Nextcloud and Jellyfin are still on the flat network. The [network document](docs/NETWORK.md) tracks current state and target state as separate diagrams, deliberately, so the documentation never claims more than what exists.
+**Note on the diagram above**: it shows the target state. The segmentation is built and working, and WireGuard, the Proxmox management interface, TrueNAS, Nextcloud and Jellyfin have been migrated. Caddy is still on the flat network, deferred by decision. The [network document](docs/NETWORK.md) tracks current state and target state as separate diagrams, deliberately, so the documentation never claims more than what exists.
 
 ## Current status
 
 | Phase | State |
 |---|---|
-| 0. Hardware | Done. The RAM and SSD upgrades are conditional options with triggers, not scheduled work |
+| 0. Hardware | Done. RAM upgraded to 24GB on 08/09/2026; a larger SSD is a conditional option with a trigger, not scheduled work |
 | 1. Base services | **Done** and validated (TrueNAS, WireGuard, Caddy, Nextcloud, Jellyfin, backups) |
 | 2. VLANs and firewall | **In progress** (network built; WireGuard, TrueNAS, Nextcloud and Jellyfin migrated. Caddy remains, and the inter-zone rules are still permissive) |
 | 2b. Media automation | **Done** (hardware transcoding, *arr stack behind a VPN kill-switch) |
 | 3. Storage / RAID | **Conditional**, with documented triggers - not scheduled work |
-| 4. IaC and Kubernetes | Not started |
+| 4. IaC and Kubernetes | **In progress** (OpenTofu, Ansible and CI working; a single-node k3s cluster created and installed entirely from code. Importing the existing VMs and the first workloads remain) |
 | 5. Monitoring and alerting | **Done** (Uptime Kuma, push heartbeats from host and guests, Slack alerts) |
 | 6. Documentation tooling | Not started |
 
