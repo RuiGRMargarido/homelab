@@ -19,6 +19,16 @@ variable "proxmox_api_token" {
   sensitive   = true
 }
 
+variable "ssh_public_key" {
+  description = <<-EOT
+    Public SSH key for the `ansible` user on guests created by OpenTofu. The
+    private half stays in WSL2, where Ansible runs. A public key is not a
+    secret; it lives in terraform.tfvars with the other inputs so the code
+    stays free of anything tied to one machine.
+  EOT
+  type        = string
+}
+
 variable "proxmox_insecure" {
   description = <<-EOT
     Skip TLS verification. True because the host serves its own self-signed
