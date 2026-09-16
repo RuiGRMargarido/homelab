@@ -1,0 +1,25 @@
+---
+# Pinned to the stable channel as reported by update.k3s.io on 16/09/2026.
+# Upgrading means changing the version AND the checksum below together: the
+# install script is fetched from the same release tag, so a new version brings
+# a new script.
+k3s_server_version: v1.36.4+k3s1
+
+k3s_server_install_script_url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ k3s_server_version | urlencode }}/install.sh"
+
+# sha256 of install.sh at that tag, taken with curl and sha256sum on 16/09/2026.
+# The script in turn verifies the k3s binary against the sha256sum file
+# published with the release, so the whole chain is checked.
+k3s_server_install_script_checksum: "sha256:46177d4c99440b4c0311b67233823a8e8a2fc09693f6c89af1a7161e152fbfad"
+
+# Where k3s writes its kubeconfig on the node. A variable so the kubeconfig
+# tasks can be tested against a fake file without touching the node.
+k3s_server_kubeconfig_remote: /etc/rancher/k3s/k3s.yaml
+
+# Where the kubeconfig lands on the control machine. It is the cluster admin
+# credential, so it lives outside the repository with mode 0600.
+k3s_server_kubeconfig_local: "~/.kube/homelab-k3s.yaml"
+
+# k3s names its cluster, user and context `default`, which collides with any
+# other kubeconfig. Renamed on the way out.
+k3s_server_context_name: homelab-k3s

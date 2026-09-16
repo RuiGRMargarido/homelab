@@ -1,0 +1,27 @@
+---
+# The baseline every guest configured by Ansible gets.
+
+- name: Update the package cache and upgrade installed packages
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+    upgrade: dist
+
+# Installed but deliberately not started here. The service is bound to a
+# virtio serial device that only exists once the agent is enabled on the VM in
+# OpenTofu, and udev starts it by itself when that device appears. Starting it
+# now would fail on a dependency, which would read as a broken role.
+- name: Install the QEMU guest agent
+  ansible.builtin.apt:
+    name: qemu-guest-agent
+    state: present
+
+- name: Check whether an upgrade is waiting for a reboot
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: base_reboot_required
+
+- name: Reboot when a new kernel or core library is waiting
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+  when: base_reboot_required.stat.exists

@@ -49,3 +49,7 @@ imagens/
 config-*.xml
 *opnsense*.xml
 backups/
+
+# Cache que o ansible-lint cria na raiz do projeto (colecoes e ambiente).
+# Vazia hoje, mas uma corrida futura pode la deixar ficheiros.
+.ansible/

@@ -1,0 +1,46 @@
+---
+# Installs a single-node k3s server at a pinned version and hands its
+# kubeconfig to the control machine, pointed at the node.
+
+- name: Read the installed k3s version, if any
+  ansible.builtin.command:
+    cmd: /usr/local/bin/k3s --version
+  register: k3s_server_installed
+  changed_when: false
+  failed_when: false
+
+- name: Install or upgrade k3s to the pinned version
+  when: k3s_server_version not in (k3s_server_installed.stdout | default(''))
+  block:
+    - name: Download the install script from the same release, verified by checksum
+      ansible.builtin.get_url:
+        url: "{{ k3s_server_install_script_url }}"
+        dest: /root/k3s-install.sh
+        checksum: "{{ k3s_server_install_script_checksum }}"
+        mode: "0700"
+
+    - name: Run the install script
+      ansible.builtin.command:
+        cmd: /root/k3s-install.sh
+      environment:
+        INSTALL_K3S_VERSION: "{{ k3s_server_version }}"
+      changed_when: true
+
+- name: Wait until the node reports Ready
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - get
+      - node
+      - "{{ inventory_hostname }}"
+      - -o
+      - 'jsonpath={.status.conditions[?(@.type=="Ready")].status}'
+  register: k3s_server_ready
+  until: k3s_server_ready.stdout == "True"
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Hand the kubeconfig to the control machine
+  ansible.builtin.import_tasks: kubeconfig.yml

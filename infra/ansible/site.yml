@@ -1,0 +1,14 @@
+---
+# Run from WSL2, with the WireGuard tunnel up:
+#   cd /mnt/c/Users/ruigr/Documents/GitHub/homelab/infra/ansible
+#   ansible-playbook -i inventory site.yml
+#
+# A second run must report changed=0. That is the test that this describes a
+# state rather than a sequence of commands that happened to work once.
+
+- name: Configure the k3s node
+  hosts: k3s
+  become: true
+  roles:
+    - base
+    - k3s_server
