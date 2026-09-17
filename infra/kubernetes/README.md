@@ -46,6 +46,29 @@ kubectl delete -k infra/kubernetes/whoami
 
 Read from `kube-system` on 17/09/2026: CoreDNS; the local-path provisioner, which backs volumes with the node's own disk; metrics-server, behind `kubectl top`; Traefik, the default ingress class; and ServiceLB, whose `svclb-traefik` pod holds ports 80 and 443 on the node itself. That is why those ports answered, with a `404`, before anything was deployed.
 
+## Where a pod lives inside the node
+
+A pod is not a virtual machine. Its containers are ordinary Linux processes in VM 109's own kernel, beside `sshd`, kept apart by namespaces, which limit what a process can see, and cgroups, which limit what it can use. Read from inside the node on 17/09/2026 for the pod `whoami-55bff86bb5-md8lh`, over SSH as `ansible`:
+
+| Layer | Where to look | What it showed |
+|---|---|---|
+| Pod, as Kubernetes names it | `kubectl -n whoami get pods` | `whoami-55bff86bb5-md8lh`, uid `b67c5389-...` |
+| Pod, as containerd names it | `sudo k3s crictl pods --namespace whoami` | pod ID `a3efb3e3b3dd0` |
+| Shim, one per pod | the parent of the process, in `ps` | `containerd-shim-runc-v2 -namespace k8s.io -id a3efb3e3...`, unpacked by k3s into `/var/lib/rancher/k3s/data/<hash>/bin/` |
+| Processes | `ps -o pid,user,args --ppid <shim>` | `/pause`, which holds the pod's namespaces, and `/whoami --port=8080`, both as `nobody` |
+| Filesystem the process sees | `sudo ls /proc/<pid>/root/` | the image built `FROM scratch`: a 12MB `whoami` binary and `usr` with certificates and time zones, plus `dev`, `etc`, `proc` and `sys` supplied by the runtime. No shell, which is why it is inspected from outside |
+| cgroup | `/proc/<pid>/cgroup` | `kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod<uid>.slice/cri-containerd-<container>.scope` |
+| Memory limit | `memory.max` in that cgroup | `67108864`, the 64 MiB of the manifest, enforced by the kernel |
+| Network | `sudo nsenter -t <pid> -n ip -4 -brief addr` | its own `eth0`, `10.42.0.18/24`, the address `kubectl get pods -o wide` reports |
+| Logs | `/var/log/pods/` | one folder per pod, `<namespace>_<pod>_<uid>` |
+| Image | `sudo k3s crictl images --digests` | pulled by the pinned digest `c4717a8d1f013`, image ID `cd370f99dbfb6`, 5.14MB compressed. No tag is recorded, because it was pulled by digest |
+
+Three readings worth keeping:
+
+- **Two memory figures, both right.** `ps` gave 15.5 MiB of resident memory and `kubectl top` gave 6 MiB. `/proc/<pid>/status` separates them: 6.5 MiB of anonymous memory, which the application allocated for itself, and 9.0 MiB mapped from the binary on disk, which is shareable and can be reclaimed. The cgroup counted 6.8 MiB, and that is the figure the 64 MiB limit applies to.
+- **Burstable, by design.** The cgroup places the pod in the `burstable` quality-of-service class, because its memory request, 16Mi, is below its limit and it has no CPU limit. When the node runs short of memory, pods with no requests at all go first and pods using more than they requested go before those within their requests, which is a reason to set requests honestly.
+- **"Namespace" means three different things here.** The Kubernetes namespace is `whoami`. The shim's `-namespace k8s.io` is a containerd namespace, where every Kubernetes container lives. And the Linux namespaces are what isolate the process, which `nsenter` steps into.
+
 ## A request, from the PC to a pod
 
 ```mermaid
