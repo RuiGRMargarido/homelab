@@ -133,14 +133,16 @@ Since 11/08/2026 there is a fifth consideration: TrueNAS lives in the Trusted zo
 | Nextcloud database (MariaDB) | Docker volume on the LXC 104 disk | **Yes**, daily dump since 01/09/2026, 7 versions kept |
 | Jellyfin config and cache | Docker volumes on the LXC 105 disk | **No** |
 | VM and LXC disks | Proxmox's local 256GB SSD | **No** |
+| k3s-1 (VM 109): its operating system, k3s and the cluster's own state | the VM's disk, on Proxmox's local SSD | **No**, deliberately for now: the machine is rebuilt from code, OpenTofu for the VM and Ansible for what runs inside it. That stops being enough the day a workload keeps data there |
+| Debian cloud image used to create VMs | `local:import`, on Proxmox's local SSD | **No**, and it needs none: pinned to a dated build and its SHA512, so it can simply be downloaded again |
 | OPNsense configuration | inside VM 106 | **Yes**, daily at 03:30 since 08/09/2026, 30 versions kept in **two places**: `/var/backups/opnsense` on the host's internal disk and mirrored to the backup SSD |
 
 ### What this reveals
 
-Gaps the table makes visible, in order of severity. The first is now closed; the reasoning is kept because it is what made the fix worth doing:
+Gaps the table makes visible, in order of severity. The first two are now closed; the reasoning is kept because it is what made the fixes worth doing:
 
 - ~~**The Nextcloud database is not backed up.**~~ **Closed 01/09/2026.** The files were safe while the database that knows who owns them, which shares exist and what metadata they carry was not - a restore would have handed back files with no Nextcloud around them. Now dumped daily before the file sync, with seven versions retained. See "The Nextcloud database" below.
-- **The OPNsense configuration is not backed up.** Already recorded as a risk in `PROJECT_CONTEXT.md` and as an open task in `CHECKLIST.md`, but worth repeating: losing this means losing the entire network policy, not one service.
+- ~~**The OPNsense configuration is not backed up.**~~ **Closed 08/09/2026**: exported every night over the OPNsense API, 30 versions on the host's internal disk plus a mirror on the backup SSD, as the table above now shows. It ranked this high because losing it means losing the entire network policy, not one service.
 - **The media library is not backed up**, which is probably a conscious decision (it is large and re-obtainable), but was never recorded as one. Worth confirming it is genuinely intentional.
 
 ## Protocols and ports used in this chain
@@ -192,6 +194,8 @@ _netdev,noauto,x-systemd.automount,x-systemd.mount-timeout=30,soft,timeo=150,ret
 ```
 
 The old manual recipe (`mount -a` followed by restarting the containers) is no longer needed. Validated across two full reboots.
+
+**VM 109 (k3s-1, created 16/09/2026) has `onboot` and no order at all**, deliberately. Setting a boot order requires `Sys.Modify` on `/`, refused to the OpenTofu token on purpose (see `TOOLING.md`), and a guest without an order starts after every guest that has one and stops before them, which is the right place for a node that does not depend on NFS. That last condition is the one to watch: the day a workload on k3s mounts storage from TrueNAS, the node joins the chain above like LXCs 104 and 105, and its place in the sequence will need a decision, either set by hand as `root` or tolerated inside Kubernetes.
 
 ## Backup
 
@@ -284,3 +288,4 @@ Nothing is rolled back and nothing is undone: the snapshot is read-only and reco
 - 11/08/2026: translated to English and brought up to date. The fstab options, the boot-dependency section and the manual recovery recipe all described a state that the fixes of 10/08 and the TrueNAS migration of 11/08 had made obsolete.
 - 12/08/2026: **added the *arr stack (LXC 107) and the path translation table**. The document drew the chain down to Jellyfin and Nextcloud but did not know LXC 107 existed, so the local-SSD downloads branch was missing entirely. Added the "same folder under four names" table after two path mix-ups in the same week: a host-side loop written with the container's path, and downloads looked for at `/downloads/complete` on a host where they live at `/var/lib/vz/downloads/complete`. The trap is not the number of layers, it is that Jellyfin and the *arr stack mount **the same** media library under **different** names.
 - 01/09/2026: **the two remaining backup gaps closed, and one silent failure found in the process**. The Nextcloud database is now dumped daily before the file sync, verified by its `-- Dump completed` footer before replacing the previous copy, and kept in seven rotating versions - closing what this document had listed as the most serious gap since 06/08. ZFS snapshots added on `nextcloud` and `shares`, daily with two weeks of retention, deliberately not on `media` because it is the largest dataset, the one with download churn, and the only one whose contents can be obtained again. The recovery procedure was validated with a disposable file and written down, on the same principle that made the 02/08 restore test worth doing. **And running the modified script revealed the backup had failed silently on three consecutive nights**: the SSD was connected but unmounted, and its fstab entry still carried `defaults,nofail` - the exact lesson learned for the NFS mounts on 10/08 and never applied to this one. Fixed with `x-systemd.automount`, which also retires the manual `mount -a` step that had been documented as normal practice.
+- 17/09/2026: **review after Phase 4 created the first machine built from code.** The table of where things live gained k3s-1 and the cloud image it was built from, both deliberately without backup for now, since the machine is rebuilt from code; that stops being true the day a workload keeps data on it. The boot section records why VM 109 starts with no order, and what would make that wrong. And a contradiction inside this document: the OPNsense configuration was still listed as a gap, just below the table showing it backed up every night since 08/09.

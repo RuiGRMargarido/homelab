@@ -106,15 +106,14 @@ Include the service name in the heading (e.g. "User accounts (Nextcloud)"), so t
 | Proxmox API token (OpenTofu) | Phase 4 - lets OpenTofu create and manage VMs without using root@pam | *(store it already assembled, `user@pve!tokenname=<secret>`, which is the string the provider expects. Shown once at creation and not recoverable)* |
 | Firewall API key + secret | Automated export of the firewall configuration | *(the pair also lives in a mode-600 file on the host; this table is the reference, not the only copy)* |
 | Slack Incoming Webhook | Alerts to #homelab-alerts | *(treat as a password - it is a bearer token)* |
-| Healthchecks.io (if applicable) | Pings from scheduled jobs | |
 
 ## Key files (never inline the contents here, only the path)
 
 | What | Path |
 |---|---|
-| SSH key used by Ansible | |
-| k3s kubeconfig | |
-| `infra/secrets/*.tfvars` (OpenTofu) | `<repo>\infra\secrets\` (gitignored, see Phase 4) |
+| SSH key used by Ansible | `~/.ssh/<key>` inside WSL2, mode 600. On the Linux side on purpose: under `/mnt/c` every file shows as 777, and SSH refuses such a key |
+| k3s kubeconfig | `~/.kube/<cluster>.yaml` inside WSL2, mode 600, used with `KUBECONFIG=` |
+| `terraform.tfvars` (OpenTofu) | `<repo>\infra\opentofu\terraform.tfvars` (gitignored by `*.tfvars`) |
 
 ## Datasets and important paths
 
@@ -146,6 +145,9 @@ Anyone holding one of these can forge a heartbeat, which means silencing an alar
 | TrueNAS uptime | |
 | Backup diario (04:00) | |
 | ZFS scrub | |
+| VPN tunnel (gluetun) | |
+| OPNsense firewall | |
+| Backup config OPNsense | |
 
 The Slack Incoming Webhook URL belongs here too, for the same reason: it posts to the channel on its own authority.
 
@@ -168,3 +170,4 @@ A push monitor that stops hearing from a scheduled job is the only thing that no
 - 01/08/2026: "Administrative access per service" became the central table again (one row per service), right after "VMs and Containers", with an "All accounts" column linking to each service's sub-table. The "### User accounts" headings now include the service name in brackets.
 - 11/08/2026: translated to English; added the `ip6=manual` practice for new containers.
 - 11/09/2026: the push-token table moved out of "Administrative access per service" into its own `## Monitoring (LXC 108)` section, placed before History, which is where it sits in the real file; a dead-man's-switch sub-table joined it. The "API tokens and keys" table gained the format of the Proxmox token and a row for the firewall API key pair.
+- 17/09/2026: brought back in line with the real file. The key files table gained the paths Phase 4 settled, inside WSL2 for the SSH key and the kubeconfig, and its OpenTofu row pointed at `infra/secrets/`, a folder that was planned and never created: the file is `infra/opentofu/terraform.tfvars`. The push-token table gained the three monitors added since it was written, and the Healthchecks row left, since that tool was dropped on 31/08/2026.

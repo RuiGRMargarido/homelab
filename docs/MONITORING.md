@@ -16,7 +16,7 @@ The inversion is subtle and decisive. Under pull, **whatever answers decides** t
 
 This is a *dead man's switch*, named for the same device on a train: it requires continuous active presence, and absence is what triggers it.
 
-Both models are in use. The nine conventional monitors are cheap and useful. The five that matter are push.
+Both models are in use. The nine conventional monitors are cheap and useful. The eight that matter are push.
 
 ## What is installed, and where
 
@@ -27,7 +27,7 @@ Both models are in use. The nine conventional monitors are cheap and useful. The
 | **cron** | Proxmox host, every minute | Runs the script |
 | **Slack webhook** | Configured inside Uptime Kuma | Delivers the alert |
 
-There is **one** script on the host. It performs three checks feeding three monitors; the two covering scheduled jobs live elsewhere - one inside the backup script, one as a cron job inside TrueNAS.
+There is **one** script on the host. It performs five checks feeding five monitors; the three covering scheduled jobs live elsewhere - one inside the backup script, one inside the OPNsense configuration export, and one as a cron job inside TrueNAS.
 
 **Why the script runs on the host rather than in the container**: the NFS mounts are mounted on the host. Inside LXC 108 there is no `/mnt/pve/media-nfs`, so the check that matters is impossible to perform there. That constraint is what forced the push model, and it turned out to be the better design anyway.
 
@@ -50,20 +50,24 @@ cron (every minute, on the host)
           ├─ 1. read load, available memory, I/O pressure   [instant, /proc only]
           │      └─ all within thresholds? → curl .../api/push/<host-token>
           │         any breached? → send nothing
-          ├─ 2. real ls on the 3 mounts, 20s hard timeout each
+          ├─ 2. HTTPS to the firewall's Management interface, 10.10.30.1
+          │      └─ answered 200? → curl .../api/push/<firewall-token>, with the VM's CPU
+          │         no answer? → send nothing
+          ├─ 3. real ls on the 3 mounts, 20s hard timeout each
           │      └─ all three answered? → curl .../api/push/<nfs-token>
           │         any failure or timeout? → send nothing
-          └─ 3. guest uptime via the QEMU agent, 45s timeout
-                 └─ above 30 minutes? → curl .../api/push/<truenas-token>
-                    just restarted, or agent silent? → send nothing
-                    could not even ask? → send nothing, and stderr goes
-                                          to the journal, tag monitor-push
-          └─ 4. VPN tunnel via LXC 107, 15s timeout
+          ├─ 4. guest uptime via the QEMU agent, 45s timeout
+          │      └─ above 30 minutes? → curl .../api/push/<truenas-token>
+          │         just restarted, or agent silent? → send nothing
+          │         could not even ask? → send nothing, and stderr goes
+          │                               to the journal, tag monitor-push
+          └─ 5. VPN tunnel via LXC 107, 15s timeout
                  └─ gluetun healthy AND qbittorrent up AND a public IP recorded?
                     → curl .../api/push/<vpn-token>
 
 Separately, outside this script:
   backup-homelab.sh, final line   → curl .../api/push/<backup-token>
+  backup-opnsense.sh, final line  → curl .../api/push/<opnsense-backup-token>
   cron inside TrueNAS, daily      → curl .../api/push/<scrub-token>  (if scrub age < 55d)
 
 Uptime Kuma (LXC 108)
@@ -205,7 +209,7 @@ Remove it once the vCPU stall is understood. An instrument built for one questio
 
 ## The monitors
 
-**The five that matter** are all push. The first two are the only ones that would have caught this month's real failures; two cover the scheduled jobs, whose failure mode is invisible to any availability check; and the last catches a restart the hypervisor itself would not have seen:
+**The eight that matter** are all push. The first two are the only ones that would have caught August's real failures; three cover scheduled jobs, whose failure mode is invisible to any availability check; one catches a restart the hypervisor itself would not have seen; and two watch components that had already failed once with nobody noticing, the VPN tunnel and the firewall:
 
 | Monitor | What it demands to stay green |
 |---|---|
@@ -365,6 +369,7 @@ pct exec 107 -- sh -c 'docker inspect --format "gluetun: {{.State.Health.Status}
 
 - **History and graphs beyond Uptime Kuma's retention** - Prometheus and Grafana, deliberately deferred: it is the alerting that has value here, not the dashboards
 - **Memory pressure per container** - `Host health` reads the host, and on 16/09/2026 a container stuck at its own memory ceiling was caught only because it thrashed hard enough to spill into the I/O pressure of the host. One with less I/O behind it would stay invisible, since the host has memory to spare. Each LXC has its own `memory.pressure`, so this is one more check in the same script rather than a new tool. Tracked in `CHECKLIST.md` Phase 5
+- **The k3s node (VM 109)**, running since 16/09/2026 with nothing watching it, neither the VM nor its API. A pull monitor is ruled out for the same reason as the firewall's: Uptime Kuma on the flat network has no route into Trusted. The host has one, through rule 3, and both patterns already in the script fit: the guest agent is now enabled on the VM, as it is on TrueNAS, and an anonymous request to `:6443` answering `401` already proves the API is serving. Tracked in `CHECKLIST.md` Phase 5
 
 ## History
 
@@ -382,3 +387,4 @@ pct exec 107 -- sh -c 'docker inspect --format "gluetun: {{.State.Health.Status}
 - 03/09/2026: **the first real incident, and the alerting worked**. The media stack, restored the same evening after ten days down, ran ten days of overdue library scans at once and took the host with it: `Host health` stopped sending heartbeats, `NFS mounts` went red, Nextcloud timed out at 48 seconds against a 77ms average, and the five-minute load reached 18.02 against a threshold of 20. Everything recovered once the container was stopped by hand. **The value of the monitoring here was not the notification, it was that the numbers it had been carrying all along explained the event**: pressure at `avg300` read 35.5% for memory against 18.4% for I/O, which is the reverse of every August incident and identifies this as a memory event rather than a disk one. Thresholds behaved as designed too, since `Host health` is the check that stops on load above 20, under 800MB available, or I/O pressure above 50%, and it was the first to go quiet. Worth recording as the moment the platform stopped depending on somebody happening to look, since the previous comparable failure ran for six days unnoticed.
 - 04/09/2026: **a monitor for the firewall, built the night it was needed**. OPNsense spent an hour unreachable from the VPN while answering the host perfectly, and no monitor covered it. The check is push, from the host, because the segmentation that makes the firewall worth having also makes it unreachable from where Uptime Kuma lives. It runs **second, before the NFS check**, since a dead firewall causes hanging NFS mounts and the test that identifies the cause must not queue behind the symptom. Total cycle with five checks: 1.9 seconds.
 - 16/09/2026: **the runbook pointed the wrong way, and the alerting did not.** `Host health` and `Jellyfin` went red together while every storage monitor stayed green, and the cause was LXC 105 at its 2GB memory ceiling during a 4K transcode (full account in `CHECKLIST.md` History). The alerting did its job: the load and I/O pressure thresholds both broke and the alert arrived. What failed was this document, twice. The `NFS mounts` rule read "`sdb` at 0% with processes in `D` is a block above it", and the pool disk was indeed idle, with the I/O on the NVMe through the loop device of a container, which the rule never looked at. And the `Host health` paragraph promised that the red event names the broken threshold, which the script cannot do, since it only pushes when everything passes. Corrected: `iostat` over every device instead of one, the wait channel as the first discriminator, a paragraph for the pattern of the day, and a warning where the `SECRETS.md` runbook title assumes the cause. A runbook is only really tested by an incident it did not anticipate.
+- 17/09/2026: **the path of an alert had lost a check.** The diagram at the top still drew four blocks in the script while the firewall check added on 04/09 runs second, and the introduction still counted five monitors that matter where the table lists eight; the heartbeat of the OPNsense configuration export was missing from the jobs outside the script. Also recorded as not covered: the k3s node, running since 16/09 with nothing watching it.

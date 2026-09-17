@@ -64,6 +64,8 @@ Full task-level breakdown in [CHECKLIST.md](docs/CHECKLIST.md).
 
 **Honest state tracking.** Documents separate what is built from what is planned. When a diagram described the intended architecture as if it were reality, that was treated as a defect and fixed.
 
+**Infrastructure as code under a least-privilege identity.** The Kubernetes node was created by OpenTofu through an API token whose role refuses what most guides grant, a root console on the hypervisor included, and configured by Ansible roles tested against a fake kubeconfig before they touched the machine. The CI that validates it was verified by breaking it on purpose. When a boot-order setting demanded one of the refused privileges, the code changed, not the permissions.
+
 ## Selected engineering write-ups
 
 These are the parts worth reading if you want to see how problems were approached, not just what was installed.
@@ -95,6 +97,7 @@ These are the parts worth reading if you want to see how problems were approache
 | [TOOLING.md](docs/TOOLING.md) | Tooling decisions: IaC, monitoring, documentation |
 | [MONITORING.md](docs/MONITORING.md) | How the platform watches itself: push-based dead man's switches, thresholds drawn from real incidents, and what each alert means |
 | [WORKFLOW.md](docs/WORKFLOW.md) | Where each tool runs and how the workflow fits together |
+| [infra/README.md](infra/README.md) | Infrastructure as code: where each tool runs, how a node goes from nothing to a running k3s, and how to run it |
 | [HARDWARE.md](docs/HARDWARE.md) | Hardware criteria and options considered |
 
 ## A note on secrets
