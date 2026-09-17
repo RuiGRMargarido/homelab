@@ -37,7 +37,7 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 | Management | 30 | `10.10.30.0/24` | Proxmox web UI and API, switch management |
 | VPN tunnel | - | `10.10.40.0/24` | Virtual subnet, assigned to authenticated clients |
 
-**Note on the diagram above**: it shows the target state. The segmentation is built and working, and WireGuard, the Proxmox management interface, TrueNAS, Nextcloud and Jellyfin have been migrated. Caddy is still on the flat network, deferred by decision. The [network document](docs/NETWORK.md) tracks current state and target state as separate diagrams, deliberately, so the documentation never claims more than what exists.
+**Note on the diagram above**: it shows the target state. The segmentation is built and working, and WireGuard, the Proxmox management interface, TrueNAS, Nextcloud and Jellyfin have been migrated. Caddy (deferred by decision) and the media automation stack are still on the flat network. The [network document](docs/NETWORK.md) tracks current state and target state as separate diagrams, deliberately, so the documentation never claims more than what exists.
 
 ## Current status
 
@@ -45,7 +45,7 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 |---|---|
 | 0. Hardware | Done. RAM upgraded to 24GB on 08/09/2026; a larger SSD is a conditional option with a trigger, not scheduled work |
 | 1. Base services | **Done** and validated (TrueNAS, WireGuard, Caddy, Nextcloud, Jellyfin, backups) |
-| 2. VLANs and firewall | **In progress** (network built; WireGuard, TrueNAS, Nextcloud and Jellyfin migrated. Caddy remains, and the inter-zone rules are still permissive) |
+| 2. VLANs and firewall | **In progress** (network built; WireGuard, TrueNAS, Nextcloud and Jellyfin migrated. Caddy and the media automation stack remain on the flat network, and the inter-zone rules are still permissive) |
 | 2b. Media automation | **Done** (hardware transcoding, *arr stack behind a VPN kill-switch) |
 | 3. Storage / RAID | **Conditional**, with documented triggers - not scheduled work |
 | 4. IaC and Kubernetes | **In progress** (OpenTofu, Ansible and CI working; a single-node k3s cluster created and installed entirely from code. Importing the existing VMs and the first workloads remain) |

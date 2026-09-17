@@ -8,7 +8,7 @@ Quick-reference document: "how the network is put together", to consult at any m
 
 ## Diagram 1: current state (17/09/2026)
 
-The most important reading of this diagram: **the Trusted zone now holds every service that stores or serves data**. TrueNAS moved there on 11/08/2026 and was alone for four weeks; Jellyfin and Nextcloud joined it on 08/09/2026. What remains on the flat network is Caddy, which has no configuration yet and will be created directly in the right zone, and Uptime Kuma, which is there **on purpose**: to raise an alert it must reach the internet without depending on the firewall it watches.
+The most important reading of this diagram: **the Trusted zone now holds every service that stores or serves data**. TrueNAS moved there on 11/08/2026 and was alone for four weeks; Jellyfin and Nextcloud joined it on 08/09/2026. What remains on the flat network is Caddy, which has no configuration yet and will be created directly in the right zone; Uptime Kuma, which is there **on purpose**: to raise an alert it must reach the internet without depending on the firewall it watches; and the *arr stack (LXC 107), there since it was created on 12/08 and stopped since 08/09, a placement no document recorded until the inventory was checked against the host on 17/09/2026, and a zone never decided.
 
 **k3s-1 (VM 109) joined Trusted on 16/09/2026**, the first machine born in its zone rather than migrated into it. It is also the first one administered from the PC through the WireGuard tunnel, drawn as the dashed line leaving the home PC: Ansible and `kubectl` reach it that way, see Flow 4 below.
 
@@ -24,10 +24,11 @@ flowchart TB
     ROUTER -- "VLAN 1, untagged" --> SW
     ROUTER -- "dedicated WAN leg" --> FWWAN
 
-    subgraph FLAT["Flat network · VLAN 1 · household, Caddy, monitoring"]
+    subgraph FLAT["Flat network · VLAN 1 · household, Caddy, monitoring, media automation"]
         PVEA["Proxmox · old IP"]:::flat
         CADDY["Caddy"]:::flat
         KUMA["Uptime Kuma · by design"]:::flat
+        ARR["arr stack · stopped"]:::flat
         MNT["mnt-mate · dev"]:::flat
         PC["Home PC"]:::flat
     end
@@ -76,7 +77,7 @@ flowchart TB
 | Zones | |
 | ----- | -------------------------------------- |
 | ⬜ | Internet / router / switch |
-| 🟫 | Flat network · VLAN 1 · `192.168.1.0/24` - Caddy and Uptime Kuma only, since 08/09/2026 |
+| 🟫 | Flat network · VLAN 1 · `192.168.1.0/24` - since 08/09/2026, of the homelab only Caddy, Uptime Kuma and the *arr stack (stopped) |
 | 🟦 | Dedicated firewall (interfaces) |
 | 🟧 | DMZ · VLAN 10 · `10.10.10.0/24` |
 | 🟩 | Trusted · VLAN 20 · `10.10.20.0/24` |
@@ -90,6 +91,8 @@ flowchart TB
 **A note on Proxmox appearing twice**: not a mistake in the diagram. The host is *dual-homed* on purpose - it has the old IP on the flat network (`192.168.1.206`) and another one in Management (`10.10.30.2`, via `vmbr0.30`). The old IP is the safety net against lockout: if the firewall fails or a rule is wrong, that is the way back in to fix it. It is exactly what saved the diagnosis during the incident of 06/08/2026 (see `PROJECT_CONTEXT.md` §Risks).
 
 ## Inventory: where each component is today
+
+Checked against the host on 17/09/2026: the bridge, VLAN tag and address of every guest, read from `pct config` and `qm config` rather than from an earlier version of this table.
 
 | Component | ID | Current zone | Access address | Target zone |
 |---|---|---|---|---|
@@ -106,6 +109,8 @@ flowchart TB
 | Caddy | LXC 101 | Flat network | `192.168.1.83:80` and `:443` | *(deferred - see `CHECKLIST.md`)* |
 | Nextcloud | LXC 104 | **Trusted** | `http://10.10.20.84:8080`, or `http://192.168.1.95:8080` from the home network | *(migrated 08/09/2026)* |
 | Jellyfin | LXC 105 | **Trusted** | `http://10.10.20.87:8096`, or `http://192.168.1.95:8096` from the home network | *(migrated 08/09/2026)* |
+| *arr stack (qBittorrent, Sonarr, Radarr, Prowlarr, Jellyseerr) | LXC 107 | Flat network | `192.168.1.90`, one web interface per application; **stopped since 08/09/2026** | *(never decided - see `CHECKLIST.md` §Open decisions)* |
+| Uptime Kuma | LXC 108 | Flat network | `http://192.168.1.91:3001` | *(stays, by design - see `MONITORING.md`)* |
 | mnt-mate (dev) | VM 100 | Flat network | `192.168.1.212:22` (SSH) | *(undecided - see `CHECKLIST.md` §Open decisions)* |
 | VPN clients | - | Tunnel | `10.10.40.2` (phone), `10.10.40.3` (PC). The PC's tunnel is also the administration path into Trusted and Management since 16/09/2026 (Ansible over SSH, `kubectl`) | *(unchanged)* |
 
@@ -157,7 +162,7 @@ Reference for writing the restricted firewall rules that are still missing (see 
 
 | VLAN | Name | Subnet | What lives here (target) | State |
 |---|---|---|---|---|
-| 1 *(native, untagged)* | Home network | 192.168.1.0/24 | The firewall's WAN leg, the home PC and the rest of the household network | Active. Of the homelab, only Caddy (its move deferred by decision), Uptime Kuma (there by design) and the powered-off `mnt-mate` remain, since 08/09/2026 |
+| 1 *(native, untagged)* | Home network | 192.168.1.0/24 | The firewall's WAN leg, the home PC and the rest of the household network | Active. Of the homelab, only Caddy (its move deferred by decision), Uptime Kuma (there by design), the *arr stack (stopped, its zone never decided) and the powered-off `mnt-mate` remain, since 08/09/2026 |
 | 10 | DMZ | 10.10.10.0/24 | WireGuard (the internet-facing leg). Caddy only moves here once there is a decided app for public exposure | **Active and populated** (WireGuard) |
 | 20 | Trusted | 10.10.20.0/24 | TrueNAS `10.10.20.10`, k3s-1 `10.10.20.11`, Nextcloud `10.10.20.84`, Jellyfin `10.10.20.87`, and later the k3s workloads | **Active and populated** (TrueNAS 11/08/2026, Jellyfin and Nextcloud 08/09/2026, k3s-1 16/09/2026) |
 | 30 | Management | 10.10.30.0/24 | Proxmox UI/API, switch management, SSH to the nodes | **Active** (Proxmox); the switch is still on the flat network |
@@ -255,7 +260,7 @@ OPNsense is *default-deny*: anything not explicitly permitted is blocked. Which 
 | 1 | DMZ | `10.10.10.10` (WireGuard) | Trusted network | Pass | Lets VPN clients reach the Trusted zone |
 | 2 | DMZ | `10.10.10.10` (WireGuard) | Management network | Pass | Lets VPN clients reach Proxmox |
 | 3 | MGMT | Management network | Any | Pass | The Proxmox host needs to initiate connections to every zone |
-| 4 | DMZ | `10.10.10.10` (WireGuard) | WAN network (`192.168.1.0/24`) | Pass | Lets VPN clients reach the flat network, where Caddy and the household devices live. Nextcloud and Jellyfin lived there too until 08/09/2026 (see History, 11/08/2026) |
+| 4 | DMZ | `10.10.10.10` (WireGuard) | WAN network (`192.168.1.0/24`) | Pass | Lets VPN clients reach the flat network, where Caddy, the *arr stack and the household devices live. Nextcloud and Jellyfin lived there too until 08/09/2026 (see History, 11/08/2026) |
 | 5 | TRUSTED | Trusted network | Any | Pass | Outbound from the Trusted zone: without it TrueNAS has no internet, NTP or updates |
 | NAT | WAN | Any | WAN `:51820/UDP` | Pass + DNAT | Forwards WireGuard to `10.10.10.10:51820` |
 | NAT | WAN and DMZ | alias `OrigensLocais` | `192.168.1.95:445/TCP` | Pass + DNAT | SMB to TrueNAS (`10.10.20.10:445`) |
@@ -290,7 +295,7 @@ flowchart LR
     DMZ["DMZ<br/>WireGuard"]:::dmz
     TRU["Trusted<br/>TrueNAS · Nextcloud<br/>Jellyfin · k3s-1"]:::tru
     MGM["Management<br/>Proxmox"]:::mgmt
-    PLA["Flat network<br/>household · Caddy<br/>Uptime Kuma"]:::flat
+    PLA["Flat network<br/>household · Caddy<br/>Uptime Kuma · arr stack"]:::flat
 
     NET -- "UDP 51820 · DNAT" --> DMZ
     PLA -- "4 redirects on .95" --> TRU
@@ -314,7 +319,7 @@ Three uncomfortable readings the matrix makes obvious:
 
 - **The Management zone is currently the most powerful on the network**, not the most protected. The `MGMT → any` rule was created to unblock the Proxmox host and ended up giving it unrestricted access to everything. That is fine while only Proxmox lives there, and stops being fine the moment the switch (or anything else) joins the zone.
 - **The DMZ has full access to Trusted, Management and the flat network.** It is restricted to WireGuard's IP, which makes it acceptable for now, but "everything" ought to be a short list of ports. That is the difference between "my VPN works" and "my VPN only does what it needs to".
-- **The three arrows leaving the DMZ exist because the services were scattered.** That is much less true since 08/09/2026: with Nextcloud and Jellyfin in Trusted, the DMZ needs Trusted and Management, and reaches the flat network only for Caddy and the household. Narrowing those three arrows is now a smaller job than it was.
+- **The three arrows leaving the DMZ exist because the services were scattered.** That is much less true since 08/09/2026: with Nextcloud and Jellyfin in Trusted, the DMZ needs Trusted and Management, and reaches the flat network only for Caddy, the *arr stack and the household. Narrowing those three arrows is now a smaller job than it was.
 
 ### Rules still to be written (target)
 
@@ -477,3 +482,4 @@ General Wi-Fi, the guest network and any eventual IoT isolation stay **outside**
 - 16/09/2026: **the PC's WireGuard tunnel became the administration path into the zones, and captured the home network while doing it.** Chosen over a WAN rule for the PC's address because it already existed, needed no new rule, and gates access by key. SSH from WSL2 to the k3s node worked through it first time. The side effect showed up only because the route table was asked: the PC's tunnel profile carries `AllowedIPs = 192.168.1.0/24, 10.10.0.0/16`, and with the tunnel up **Windows routes the whole home network through it**. The tunnel route wins on metric, 5 against 281 for the Ethernet card, so a request from the PC to the Proxmox host on the same switch leaves encrypted towards the public DDNS address, comes back in through the router, is decrypted in the WireGuard container and is sent back out through OPNsense to the home network. The same happens to SMB, to Jellyfin on `192.168.1.95`, to the router's own page and to the TV box, and while the tunnel is up the PC cannot reach its neighbours at all if the homelab is down. The `192.168.1.0/24` entry is correct for a device away from home and wrong for one inside it. The fix is a profile for home use with `AllowedIPs = 10.10.0.0/16` and `Endpoint = 192.168.1.95:51820`, keeping the current one for away.
 - 17/09/2026: the k3s API answers on `10.10.20.11:6443`, and `kubectl` on the PC reaches it through the WireGuard tunnel, the same path SSH already used, with no new firewall rule. The k3s-1 row no longer describes it as future.
 - 17/09/2026: **documentation review after Phase 4 reached a running k3s node, and four diagrams were describing an earlier month.** The current-state diagram gained k3s-1 in Trusted and the tunnel from the home PC that administers it. The matrix diagram still drew Nextcloud and Jellyfin on the flat network, and the flat network with no way into Trusted, while four redirects have carried the household there since 08/09; the rule table listed two of those four. Flow 1 still ended at Jellyfin's old flat address, around the firewall rather than through it. Added Flow 4, the administration path through the tunnel, with the failures already met on it, and the ports of k3s-1, including 80 and 443, which answer before anything is deployed because k3s ships Traefik by default. The pending WAN-side rule for the PC is closed by the decision of 16/09. And both SVGs were redrawn: the physical topology still showed the powerline carrying the uplink, a week after the direct cable of 10/09, and the target state did not know k3s-1 existed.
+- 17/09/2026: **the inventory checked against the host, and it had never listed two guests.** `pct config` and `qm config` for every guest, bridge, VLAN tag and address, confirmed every row that existed and found two that did not: LXC 108, the monitor, and LXC 107, the *arr stack, which has lived on the flat network at `192.168.1.90` since it was created on 12/08. Several places in this document, the legend and the matrix diagram among them, described the flat network as holding only Caddy and Uptime Kuma. The stack is stopped, so the omission exposed nothing, but its zone was never decided either, which is now an open decision in `CHECKLIST.md`.
