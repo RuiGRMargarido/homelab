@@ -6,9 +6,11 @@ Quick-reference document: "how the network is put together", to consult at any m
 
 **About the formats**: the diagrams come in two formats, deliberately. The ones that change with every network change (current state, rule matrix, packet paths) stay in **Mermaid**, written directly in the markdown, because editing text is fast and needs no tooling. The ones that are stable and act as showcase pieces (target state, physical topology) are **hand-written SVG** under `diagrams/`, because Mermaid's automatic layout cannot align the firewall interfaces above the zones they serve, nor place the zones side by side. The trade is intentional: better looks where it counts, easier editing where things move often.
 
-## Diagram 1: current state (08/09/2026)
+## Diagram 1: current state (17/09/2026)
 
 The most important reading of this diagram: **the Trusted zone now holds every service that stores or serves data**. TrueNAS moved there on 11/08/2026 and was alone for four weeks; Jellyfin and Nextcloud joined it on 08/09/2026. What remains on the flat network is Caddy, which has no configuration yet and will be created directly in the right zone, and Uptime Kuma, which is there **on purpose**: to raise an alert it must reach the internet without depending on the firewall it watches.
+
+**k3s-1 (VM 109) joined Trusted on 16/09/2026**, the first machine born in its zone rather than migrated into it. It is also the first one administered from the PC through the WireGuard tunnel, drawn as the dashed line leaving the home PC: Ansible and `kubectl` reach it that way, see Flow 4 below.
 
 One practical consequence worth holding on to: storage now crosses the firewall. The host's NFS mounts leave the Management zone and enter Trusted (`clientaddr=10.10.30.2`, `addr=10.10.20.10`), instead of both sitting on the same flat network. It is the first time real data traffic passes through the segmentation.
 
@@ -52,13 +54,16 @@ flowchart TB
         NC["Nextcloud"]:::tru
         JF["Jellyfin"]:::tru
         TN["TrueNAS · ZFS"]:::tru
+        K3S["k3s-1 · VM 109"]:::tru
     end
 
     subgraph MGMT["Management zone"]
         PVEB["Proxmox · UI/API"]:::mgmt
     end
 
+    PC -. "WireGuard peer" .-> WG
     WG -. "authenticated tunnel" .-> PVEB
+    WG -. "Ansible, kubectl" .-> K3S
 
     classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
     classDef flat fill:#B5651D,stroke:#8A4A15,color:#FFF8F0
@@ -121,6 +126,9 @@ Reference for writing the restricted firewall rules that are still missing (see 
 | Nextcloud | 8080 | TCP | Web interface |
 | Jellyfin | 8096 | TCP | Web interface |
 | Jellyfin | 1900, 7359 | UDP | Local network auto-discovery *(optional)* |
+| k3s-1 | 22 | TCP | SSH, for Ansible (key only) |
+| k3s-1 | 6443 | TCP | Kubernetes API, for `kubectl` |
+| k3s-1 | 80, 443 | TCP | Traefik, the ingress controller k3s installs by default. Answers `404` while nothing is deployed behind it (measured 17/09/2026) |
 | Caddy | 80, 443 | TCP | HTTP and HTTPS |
 | Switch | 80 | TCP | Management web interface |
 
@@ -149,7 +157,7 @@ Reference for writing the restricted firewall rules that are still missing (see 
 
 | VLAN | Name | Subnet | What lives here (target) | State |
 |---|---|---|---|---|
-| 1 *(native, untagged)* | Home network | 192.168.1.0/24 | The firewall's WAN leg, the home PC and the rest of the household network | Active, but still hosting services that belong in Trusted |
+| 1 *(native, untagged)* | Home network | 192.168.1.0/24 | The firewall's WAN leg, the home PC and the rest of the household network | Active. Of the homelab, only Caddy (its move deferred by decision), Uptime Kuma (there by design) and the powered-off `mnt-mate` remain, since 08/09/2026 |
 | 10 | DMZ | 10.10.10.0/24 | WireGuard (the internet-facing leg). Caddy only moves here once there is a decided app for public exposure | **Active and populated** (WireGuard) |
 | 20 | Trusted | 10.10.20.0/24 | TrueNAS `10.10.20.10`, k3s-1 `10.10.20.11`, Nextcloud `10.10.20.84`, Jellyfin `10.10.20.87`, and later the k3s workloads | **Active and populated** (TrueNAS 11/08/2026, Jellyfin and Nextcloud 08/09/2026, k3s-1 16/09/2026) |
 | 30 | Management | 10.10.30.0/24 | Proxmox UI/API, switch management, SSH to the nodes | **Active** (Proxmox); the switch is still on the flat network |
@@ -240,20 +248,24 @@ None of this makes the trunk configuration wasted work: it is what allows a phys
 
 OPNsense is *default-deny*: anything not explicitly permitted is blocked. Which means the list of what exists is, by itself, the complete policy.
 
-### Rules actually configured today (11/08/2026)
+### Rules actually configured today (11/08/2026, redirects as recorded on 08/09/2026)
 
 | # | Interface | Source | Destination | Action | Description |
 |---|---|---|---|---|---|
 | 1 | DMZ | `10.10.10.10` (WireGuard) | Trusted network | Pass | Lets VPN clients reach the Trusted zone |
 | 2 | DMZ | `10.10.10.10` (WireGuard) | Management network | Pass | Lets VPN clients reach Proxmox |
 | 3 | MGMT | Management network | Any | Pass | The Proxmox host needs to initiate connections to every zone |
-| 4 | DMZ | `10.10.10.10` (WireGuard) | WAN network (`192.168.1.0/24`) | Pass | Lets VPN clients reach the flat network, where Caddy, Nextcloud and Jellyfin still live (see History, 11/08/2026) |
+| 4 | DMZ | `10.10.10.10` (WireGuard) | WAN network (`192.168.1.0/24`) | Pass | Lets VPN clients reach the flat network, where Caddy and the household devices live. Nextcloud and Jellyfin lived there too until 08/09/2026 (see History, 11/08/2026) |
 | 5 | TRUSTED | Trusted network | Any | Pass | Outbound from the Trusted zone: without it TrueNAS has no internet, NTP or updates |
 | NAT | WAN | Any | WAN `:51820/UDP` | Pass + DNAT | Forwards WireGuard to `10.10.10.10:51820` |
-| NAT | WAN | `192.168.1.0/24` | WAN `:445/TCP` | Pass + DNAT | SMB from the home network to TrueNAS (`10.10.20.10:445`) |
-| NAT | WAN | `192.168.1.0/24` | WAN `:8443/TCP` | Pass + DNAT | TrueNAS web interface from the home network (`10.10.20.10:443`) |
+| NAT | WAN and DMZ | alias `OrigensLocais` | `192.168.1.95:445/TCP` | Pass + DNAT | SMB to TrueNAS (`10.10.20.10:445`) |
+| NAT | WAN and DMZ | alias `OrigensLocais` | `192.168.1.95:8443/TCP` | Pass + DNAT | TrueNAS web interface (`10.10.20.10:443`) |
+| NAT | WAN and DMZ | alias `OrigensLocais` | `192.168.1.95:8096/TCP` | Pass + DNAT | Jellyfin (`10.10.20.87:8096`) |
+| NAT | WAN and DMZ | alias `OrigensLocais` | `192.168.1.95:8080/TCP` | Pass + DNAT | Nextcloud (`10.10.20.84:8080`) |
 
 Plus OPNsense's automatic rules, which were not hand-written but count towards the real behaviour: *anti-lockout* (TCP 80/443 to the firewall itself, per interface), blocking of private networks and *bogons* arriving from WAN, and the final *default deny*.
+
+**The redirects changed on 08/09/2026**, when Jellyfin and Nextcloud moved to Trusted: two were added, and all four are now bound to both WAN and DMZ with a shared source alias, so a single address, `192.168.1.95:<port>`, works from the house and over the VPN. The table records them from `CHECKLIST.md` Phase 2, not from a fresh reading of the firewall.
 
 Two details that cost time to work out:
 
@@ -267,20 +279,21 @@ Only **initiated** connections count. Replies on established connections always 
 | From ↓ / To → | Internet | Flat network | DMZ | Trusted | Management |
 |---|---|---|---|---|---|
 | **Internet** | - | *(router)* | UDP 51820 only | No | No |
-| **Flat network** | Yes *(router)* | Yes | No | TrueNAS SMB and `:8443` only, by redirection | No |
+| **Flat network** | Yes *(router)* | Yes | No | By redirection only: TrueNAS SMB and `:8443`, Jellyfin `:8096`, Nextcloud `:8080` | No |
 | **DMZ** (WireGuard) | *(see note)* | **Everything** | - | **Everything** | **Everything** |
-| **Trusted** (TrueNAS) | Yes | Yes | Yes | - | Yes |
+| **Trusted** | Yes | Yes | Yes | - | Yes |
 | **Management** | Yes | Yes | **Everything** | **Everything** | - |
 
 ```mermaid
 flowchart LR
     NET(("Internet")):::neut
     DMZ["DMZ<br/>WireGuard"]:::dmz
-    TRU["Trusted<br/>TrueNAS"]:::tru
+    TRU["Trusted<br/>TrueNAS · Nextcloud<br/>Jellyfin · k3s-1"]:::tru
     MGM["Management<br/>Proxmox"]:::mgmt
-    PLA["Flat network<br/>Nextcloud · Jellyfin<br/>Caddy · dev VM"]:::flat
+    PLA["Flat network<br/>household · Caddy<br/>Uptime Kuma"]:::flat
 
     NET -- "UDP 51820 · DNAT" --> DMZ
+    PLA -- "4 redirects on .95" --> TRU
     DMZ -- "everything" --> TRU
     DMZ -- "everything" --> MGM
     DMZ -- "everything" --> PLA
@@ -306,7 +319,7 @@ Three uncomfortable readings the matrix makes obvious:
 ### Rules still to be written (target)
 
 - **DMZ → Trusted should be restricted to specific ports.** Today rule 1 allows any port; the target is only what the DMZ services genuinely need to contact. The list is under "Ports per service" above, but mind the NFS warning: restricting without first pinning the helper ports produces intermittent failures.
-- **WAN-side → Management**, allowed only from the home PC's IP (OpenTofu/Ansible → the Proxmox API). Only becomes relevant in Phase 4, once IaC exists.
+- ~~**WAN-side → Management**, allowed only from the home PC's IP (OpenTofu/Ansible → the Proxmox API). Only becomes relevant in Phase 4, once IaC exists.~~ **Not needed, decided 16/09/2026**: the PC administers the zones through its WireGuard tunnel, gated by a key rather than by a source address any household device could take (Flow 4 below). OpenTofu still reaches the API on the host's flat address, an accepted debt; through the tunnel the Management address answers as well (`401`, measured 17/09/2026), which is the way out of that debt whenever it is taken.
 - **Tighten the Trusted outbound.** Rule 5 allows `Trusted → any`, which includes the DMZ and Management, neither of which TrueNAS needs to reach. The target is to allow only outbound to the internet (DNS, NTP, updates) and deny the rest.
 - **Confirm DMZ outbound to the internet.** There is no explicit `DMZ → WAN` rule. The WireGuard tunnel works anyway (replies leave through *state tracking* on the inbound connection), but an `apt update` from inside LXC 103 is probably blocked. To be confirmed the next time that container needs updating.
 
@@ -323,9 +336,9 @@ sequenceDiagram
     participant C as Phone<br/>(mobile data)
     participant D as No-IP<br/>(DDNS)
     participant R as Router<br/>192.168.1.1
-    participant F as OPNsense<br/>WAN .95
+    participant F as OPNsense<br/>WAN .95 · DMZ .1
     participant W as WireGuard<br/>10.10.10.10
-    participant J as Jellyfin<br/>192.168.1.87:8096
+    participant J as Jellyfin<br/>10.10.20.87:8096
 
     C->>D: 1. resolve HOSTNAME.ddns.net
     D-->>C: home public IP
@@ -334,8 +347,9 @@ sequenceDiagram
     F->>W: 4. DNAT to 10.10.10.10:51820
     W-->>C: 5. WireGuard handshake
     C->>W: 6. GET :8096 through the tunnel
-    W->>J: 7. MASQUERADE, leaves as 10.10.10.10
-    J-->>C: 8. reply back along the same path
+    W->>F: 7. MASQUERADE, leaves as 10.10.10.10
+    F->>J: 8. into Trusted, by rule 1 or the redirect on .95
+    J-->>C: 9. reply back along the same path
 ```
 
 | Hop | What can fail | How to test |
@@ -346,10 +360,10 @@ sequenceDiagram
 | 4 | NAT rule missing or with the wrong target | Firewall → NAT → Port Forward in OPNsense |
 | 5 | Keys mismatched, or the packet never arrives | `pct exec 103 -- wg show` should show a recent *latest handshake* |
 | 6 | Client has no route to the destination | check `AllowedIPs` in the client config |
-| 7 | Missing firewall rule for the destination zone | Firewall → Rules → DMZ; this was the cause of the 11/08/2026 incident, where the tunnel worked but reached no service at all |
-| 8 | Destination service down | test the service from the local network |
+| 7-8 | Missing firewall rule for the destination zone, or the redirect not bound to the DMZ | Firewall → Rules → DMZ and Firewall → NAT → Port Forward; a missing rule was the cause of the 11/08/2026 incident, where the tunnel worked but reached no service at all |
+| 9 | Destination service down | test the service from the local network |
 
-**Note**: hop 7 today exits to the **flat network** (`192.168.1.87`), not to Trusted, because Jellyfin has not been migrated. Once it is, the destination becomes `10.10.20.x` and the path genuinely crosses the firewall rather than going around it.
+**Note**: since 08/09/2026 the path **genuinely crosses the firewall** at hop 8. Jellyfin lives in Trusted, so what leaves WireGuard has to be let into that zone, either by rule 1 or by the redirect on `192.168.1.95:8096`, which is bound to the DMZ as well as the WAN. Until then hop 7 exited to the flat network and went around the firewall entirely.
 
 ### Flow 2: Nextcloud reads a file from TrueNAS
 
@@ -394,6 +408,37 @@ flowchart LR
 
 It does not touch the firewall, and depends on neither OPNsense nor WireGuard. **This is why Proxmox's old IP on the flat network should not be removed** while the firewall is the only route into the Management zone: it was the only access that survived the 06/08/2026 incident, and the way an SSH tunnel reached the OPNsense GUI to fix the rules.
 
+### Flow 4: the home PC administers the zones through its tunnel
+
+Added 17/09/2026. The path every administration command from the PC has taken into the zones since 16/09: `kubectl` to the Kubernetes API is drawn here, and Ansible over SSH follows it hop for hop to port 22 instead. It starts inside WSL2, a small Linux VM on the PC, whose traffic leaves through Windows and so obeys the Windows routes, which is how a tunnel opened in Windows serves tools running in Linux.
+
+```mermaid
+sequenceDiagram
+    participant K as kubectl<br/>WSL2 on the PC
+    participant P as Windows<br/>WireGuard client
+    participant F as OPNsense<br/>WAN .95 · DMZ .1
+    participant W as WireGuard<br/>10.10.10.10
+    participant N as k3s-1<br/>10.10.20.11:6443
+
+    K->>P: 1. HTTPS to 10.10.20.11:6443, NAT out of WSL2
+    P->>P: 2. 10.10.0.0/16 is routed into the tunnel
+    P->>F: 3. UDP 51820 to the endpoint, via the router's port mapping
+    F->>W: 4. DNAT to 10.10.10.10:51820
+    W->>F: 5. decrypted, leaves as 10.10.10.10
+    F->>N: 6. rule 1, DMZ → Trusted
+    N-->>K: 7. reply back along the same path
+```
+
+| Hop | What can fail | How to test |
+|---|---|---|
+| 1 | The wrong kubeconfig, or the wrong binary: inside WSL2, `kubectl.exe` is Docker Desktop's | `KUBECONFIG=~/.kube/homelab-k3s.yaml kubectl config current-context` answers `homelab-k3s` |
+| 2 | Tunnel down, or `AllowedIPs` not covering `10.10.0.0/16`. At home, a profile that also claims `192.168.1.0/24` captures the local network (see History, 16/09/2026) | `Find-NetRoute -RemoteIPAddress 10.10.20.11` in PowerShell names the tunnel interface |
+| 3-4 | Endpoint or port mapping, exactly as in Flow 1 hops 2 to 4 | the WireGuard client shows a recent handshake |
+| 5-6 | Missing DMZ → Trusted rule | Firewall → Rules → DMZ |
+| 7 | The API itself is down | `curl -k https://10.10.20.11:6443/version` answering `401` proves the API is up and merely refusing an anonymous request |
+
+The same tunnel reaches the Management zone through rule 2: `https://10.10.30.2:8006` answered `401` from the PC on 17/09/2026. Flow 3 stays the path that survives a firewall failure, since this one crosses the firewall twice.
+
 ## Household network (outside this scheme)
 
 General Wi-Fi, the guest network and any eventual IoT isolation stay **outside** this segmentation - they live on the router (Vodafone Smart Router / Huawei OptiXstar HG8247B7-8N) and do not depend on the OptiPlex. Detail in `PROJECT_CONTEXT.md` § Home router and household network.
@@ -431,3 +476,4 @@ General Wi-Fi, the guest network and any eventual IoT isolation stay **outside**
 - 16/09/2026: **k3s-1 added**, VM 109 at `10.10.20.11` in Trusted, the first machine created by OpenTofu rather than by hand, and the first to be born in its zone instead of migrated into it. In passing, **two rows of the services table were a week out of date**: Nextcloud and Jellyfin were still listed on the flat network with their old addresses, although the VLAN table in the same document had recorded their migration to Trusted on 08/09. Two tables describing the same fact drift apart as soon as only one of them is edited, which is an argument for fewer tables rather than more care.
 - 16/09/2026: **the PC's WireGuard tunnel became the administration path into the zones, and captured the home network while doing it.** Chosen over a WAN rule for the PC's address because it already existed, needed no new rule, and gates access by key. SSH from WSL2 to the k3s node worked through it first time. The side effect showed up only because the route table was asked: the PC's tunnel profile carries `AllowedIPs = 192.168.1.0/24, 10.10.0.0/16`, and with the tunnel up **Windows routes the whole home network through it**. The tunnel route wins on metric, 5 against 281 for the Ethernet card, so a request from the PC to the Proxmox host on the same switch leaves encrypted towards the public DDNS address, comes back in through the router, is decrypted in the WireGuard container and is sent back out through OPNsense to the home network. The same happens to SMB, to Jellyfin on `192.168.1.95`, to the router's own page and to the TV box, and while the tunnel is up the PC cannot reach its neighbours at all if the homelab is down. The `192.168.1.0/24` entry is correct for a device away from home and wrong for one inside it. The fix is a profile for home use with `AllowedIPs = 10.10.0.0/16` and `Endpoint = 192.168.1.95:51820`, keeping the current one for away.
 - 17/09/2026: the k3s API answers on `10.10.20.11:6443`, and `kubectl` on the PC reaches it through the WireGuard tunnel, the same path SSH already used, with no new firewall rule. The k3s-1 row no longer describes it as future.
+- 17/09/2026: **documentation review after Phase 4 reached a running k3s node, and four diagrams were describing an earlier month.** The current-state diagram gained k3s-1 in Trusted and the tunnel from the home PC that administers it. The matrix diagram still drew Nextcloud and Jellyfin on the flat network, and the flat network with no way into Trusted, while four redirects have carried the household there since 08/09; the rule table listed two of those four. Flow 1 still ended at Jellyfin's old flat address, around the firewall rather than through it. Added Flow 4, the administration path through the tunnel, with the failures already met on it, and the ports of k3s-1, including 80 and 443, which answer before anything is deployed because k3s ships Traefik by default. The pending WAN-side rule for the PC is closed by the decision of 16/09. And both SVGs were redrawn: the physical topology still showed the powerline carrying the uplink, a week after the direct cable of 10/09, and the target state did not know k3s-1 existed.
