@@ -18,6 +18,40 @@ All three layers describe an end state rather than steps, and they differ in who
 
 ## Where each piece runs
 
+```mermaid
+flowchart LR
+    subgraph PC["Home PC"]
+        subgraph WIN["Windows"]
+            TOFU["OpenTofu<br/>tfvars and state beside it"]:::win
+            WGC["WireGuard client<br/>10.10.0.0/16 into the tunnel"]:::win
+        end
+        subgraph WSL["WSL2, a small Linux VM"]
+            ANS["Ansible<br/>key in ~/.ssh"]:::wsl
+            KUB["kubectl<br/>kubeconfig in ~/.kube"]:::wsl
+        end
+    end
+
+    subgraph HOST["OptiPlex, Proxmox VE"]
+        API["Proxmox API<br/>192.168.1.206:8006"]:::pve
+        subgraph VM109["VM 109 k3s-1, Trusted, 10.10.20.11"]
+            SSHD["SSH :22<br/>user ansible"]:::tru
+            K3S["k3s :6443<br/>API, datastore, containers"]:::tru
+        end
+    end
+
+    TOFU -- "HTTPS, API token, flat network" --> API
+    API -- "creates and changes" --> VM109
+    ANS -- "SSH" --> WGC
+    KUB -- "HTTPS" --> WGC
+    WGC -- "through the firewall" --> SSHD
+    WGC -- "through the firewall" --> K3S
+
+    classDef win fill:#5470AD,stroke:#3C568C,color:#F5F7FA
+    classDef wsl fill:#7B63B8,stroke:#5E4A93,color:#F5F7FA
+    classDef pve fill:#8A93A3,stroke:#5B6472,color:#12161C
+    classDef tru fill:#3E9678,stroke:#2C7259,color:#F5F7FA
+```
+
 | Piece | Runs in | Talks to | Using | Path |
 |---|---|---|---|---|
 | OpenTofu | Windows | Proxmox API, `192.168.1.206:8006` | token `opentofu@pve!provider`, in `terraform.tfvars` | flat network |
@@ -27,11 +61,50 @@ All three layers describe an end state rather than steps, and they differ in who
 
 **Nothing of k3s runs on the PC.** `kubectl` is a client that turns commands into HTTPS requests, and the kubeconfig is an address plus a credential. The server, its database and every container live in VM 109.
 
+k3s runs with its packaged components enabled, Traefik among them, which is why ports 80 and 443 on the node already answer `404` with nothing deployed. When Ansible or `kubectl` cannot reach the node, [NETWORK.md, Flow 4](../docs/NETWORK.md#flow-4-the-home-pc-administers-the-zones-through-its-tunnel) walks the path hop by hop, with the test for each one.
+
 WSL2 is itself a lightweight VM that Windows starts on demand, and three of its properties have already shaped this tree:
 
 - **Its Linux filesystem is a virtual disk**, an `ext4.vhdx` under `%LOCALAPPDATA%\wsl\` that grows as it is written. `/root/.ssh` and `/root/.kube` live in there, not in this repository.
 - **This repository is read through `/mnt/c`**, the Windows drive shared into the VM. NTFS has no Unix permissions, so everything there shows as `777`. Ansible refuses an `ansible.cfg` in a world-writable directory, which is why the connection settings live in the inventory; and SSH refuses a private key with those permissions, which is why the key and the kubeconfig live on the Linux side, at `600`.
 - **It reaches the network through NAT on Windows**, so it follows the Windows routes, and the WireGuard tunnel up on Windows is what carries Ansible and `kubectl` into Trusted. Windows programs can be called from inside it too: there, `kubectl` is ours, while `kubectl.exe` would run the copy Docker Desktop installs.
+
+## How a node is built, end to end
+
+The k3s node was built in this order on 16/09/2026, and the order is the design: each tool hands over to the next at a point the next one can check on its own.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant T as OpenTofu<br/>Windows
+    participant P as Proxmox API
+    participant V as VM 109<br/>Debian 13
+    participant A as Ansible<br/>WSL2
+    participant K as k3s<br/>inside VM 109
+    participant C as kubectl<br/>WSL2
+
+    T->>P: plan, then apply, with the API token
+    P->>P: fetch the Debian image, SHA512 checked
+    P->>V: create the VM with that disk, VLAN 20 and cloud-init data
+    V->>V: first boot, user ansible, key, 10.10.20.11
+    Note over T,V: the seam, from here the machine is reached over SSH
+    A->>V: role base over SSH, upgrades and the guest agent
+    A->>K: role k3s_server runs the pinned install script
+    K-->>A: node Ready
+    A->>K: read /etc/rancher/k3s/k3s.yaml
+    A->>A: repoint, rename, save in ~/.kube
+    T->>P: apply again with the guest agent enabled
+    P->>V: reboot to add the agent's device
+    P-->>T: addresses reported by the agent
+    C->>K: get nodes, through the tunnel
+    K-->>C: k3s-1 Ready
+```
+
+Three things the diagram makes visible:
+
+- **Three doors, three credentials.** OpenTofu only ever talks to the Proxmox API, with its token; Ansible only to the node over SSH, with its key; `kubectl` only to the Kubernetes API, with the kubeconfig. Each credential opens one door, and none of the tools can do another's job.
+- **The seam is SSH.** OpenTofu is finished once the VM exists with a user and a key, and Ansible starts from there. When something breaks between steps 4 and 5, the first question is whether the machine answers on port 22, not what either tool did.
+- **The guest agent comes last, on purpose.** The cloud image does not ship it, and with the agent enabled at creation the provider would wait for addresses nobody reports. Ansible installs it first, and only the second `apply` turns it on, at the price of a reboot.
 
 ## Prerequisites
 
@@ -51,7 +124,9 @@ The versions pinned on the other side live in the code itself: the provider in `
 
 OpenTofu talks to the Proxmox API at **`https://192.168.1.206:8006/`**, the host's flat-network address, with `insecure = true` because the certificate is self-signed.
 
-That address is the only one that answers from the PC: the Management address `10.10.30.2:8006` is unreachable from here, which was measured rather than assumed. It is also a **leftover** from the network migration of 06/08/2026, kept "for now", so two things follow. Removing it from the host silently breaks every `apply`. And the correct long-term fix is the still-open Phase 2 item about allowing the PC's address into the Management zone, at which point this becomes one variable rather than a rewrite.
+That address was the only one answering from the PC when it was chosen on 11/09/2026: the Management address `10.10.30.2:8006` gave no response at all, which was measured rather than assumed. It is also a **leftover** from the network migration of 06/08/2026, kept "for now", so removing it from the host silently breaks every `apply`.
+
+**What changed on 16/09/2026 is the way out of that debt.** The PC now reaches the zones through its WireGuard tunnel, and through it the Management address answers too (`401`, measured 17/09/2026). The Phase 2 item that would have added a firewall rule for the PC's address was closed by that decision instead. Moving OpenTofu there is one variable, `proxmox_endpoint`, and would let the flat address go one day, at the cost of every `plan` needing the tunnel up, as Ansible and `kubectl` already do. Not taken yet: that is a decision, not a correction.
 
 Provisioning runs as **`opentofu@pve`**, never `root@pam`. What that identity may and may not do, and which privileges were deliberately refused, is in [TOOLING.md](../docs/TOOLING.md#the-proxmox-identity-for-opentofu).
 
