@@ -18,7 +18,7 @@ Everything here is documented as it was actually built, including the parts that
 | Hardware acceleration | Intel QuickSync passed through to an unprivileged LXC for Jellyfin transcoding |
 | Backups | `rsync` to external SSD plus a verified `mysqldump`, cron-scheduled, restore validated |
 | Monitoring | Uptime Kuma in its own LXC, push-based dead man's switches, alerts to Slack |
-| Infrastructure as Code | OpenTofu creating VMs through a least-privilege Proxmox API token, Ansible roles, validated by GitHub Actions CI |
+| Infrastructure as Code | OpenTofu creating VMs and importing existing guests through a least-privilege Proxmox API token, Ansible roles, validated by GitHub Actions CI |
 | Kubernetes | k3s, a single node on its own VM, built entirely from code; one test workload so far, applied from the repository |
 | Planned | Prometheus + Grafana, moving Nextcloud and Jellyfin onto k3s |
 
@@ -48,7 +48,7 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 | 2. VLANs and firewall | **In progress** (network built; WireGuard, TrueNAS, Nextcloud and Jellyfin migrated. Caddy and the media automation stack remain on the flat network, and the inter-zone rules are still permissive) |
 | 2b. Media automation | **Done** (hardware transcoding, *arr stack behind a VPN kill-switch) |
 | 3. Storage / RAID | **Conditional**, with documented triggers - not scheduled work |
-| 4. IaC and Kubernetes | **In progress** (OpenTofu, Ansible and CI working; a single-node k3s cluster created and installed entirely from code, with a first test workload applied from the repository. Importing the existing VMs and the real workloads remain) |
+| 4. IaC and Kubernetes | **In progress** (OpenTofu, Ansible and CI working; a single-node k3s cluster created and installed entirely from code, with a first test workload applied from the repository, and the first existing guest imported. Importing the rest and the real workloads remain) |
 | 5. Monitoring and alerting | **Done** (Uptime Kuma, push heartbeats from host and guests, Slack alerts) |
 | 6. Documentation tooling | Not started |
 

@@ -8,7 +8,7 @@ The reasoning behind each choice lives in [TOOLING.md sections 4 and 5](../docs/
 
 | Folder | Owns | Runs from |
 |---|---|---|
-| `opentofu/` | Creating and destroying VMs and LXCs on Proxmox. The shape of the machine: cores, memory, disks, which VLAN its NIC is tagged into | Windows (PowerShell) |
+| `opentofu/` | Creating, importing and destroying VMs and LXCs on Proxmox. The shape of the machine: cores, memory, disks, which VLAN its NIC is tagged into | Windows (PowerShell) |
 | `ansible/` | Configuring the inside of those machines: packages, users, k3s itself | **WSL2**, because Ansible does not run on Windows as a control node |
 | `kubernetes/` | The application workloads on k3s, as manifests and Helm values | **WSL2** (`kubectl`), beside the kubeconfig the Ansible role writes there |
 
@@ -145,6 +145,19 @@ Nothing secret is in this tree, and the `.gitignore` is what enforces it rather 
 
 ## Running it, in order
 
+Each command runs in one specific shell, and the prompt says which:
+
+| Prompt | Where you are | What runs there |
+|---|---|---|
+| `PS C:\...>` | Windows | `tofu` |
+| `root@<pc>:...#` | WSL2 on the PC | `ansible-playbook`, `kubectl`, `ssh` to the node |
+| `root@pve:~#` | the Proxmox host | `pct`, `qm`, `pvesm` |
+| `ansible@k3s-1:~$` | inside VM 109 | `k3s crictl`, the processes of the pods |
+
+`tofu` does not exist inside WSL2, and Ubuntu's suggestions are both wrong: `snap install opentofu` brings another version, and a Linux `init` would add Linux hashes to the committed lock file; `python3-ufo-tofu` is an unrelated Python library.
+
+**Windows PowerShell 5.1 splits an argument that starts with `-` at its first dot.** `-generate-config-out=caddy_generated.tf` reaches `tofu` as two arguments and fails with "Too many command line arguments". Quote every such argument: `"-out=caddy.tfplan"`, `"-var-file=other.tfvars"`.
+
 From the repository root. The first three are safe to run at any time and change nothing:
 
 ```bash
@@ -178,6 +191,34 @@ wsl -d Ubuntu -- bash -lc "KUBECONFIG=~/.kube/homelab-k3s.yaml kubectl get nodes
 ```
 
 Workloads inside the cluster are applied one folder at a time, with `kubectl diff -k` as the plan: see [`kubernetes/README.md`](kubernetes/README.md#running-it).
+
+## Importing a guest that already exists
+
+Proven on LXC 101, Caddy, on 17/09/2026: the least valuable guest, chosen on purpose, with VM 102 last. An import sends nothing to Proxmox. It records in the state that a resource block is an object that already exists, and the test afterwards is the one used everywhere else: `plan` must report no changes.
+
+1. **Write only the `import` block**, with `id = "pve/<vmid>"`. Do not commit it yet: an import block without its resource fails `tofu validate` in CI.
+2. **Let OpenTofu draft the resource from the real guest**, in PowerShell from `infra/opentofu`, with the quotes explained above. Planning may stop on a validation error; the draft is written anyway.
+
+   ```bash
+   tofu plan "-generate-config-out=<name>_generated.tf"
+   ```
+
+3. **Treat the draft as a draft.** Caddy's carried `entrypoint = ""`, which the provider's own validation rejects, and the MAC address, which does not belong in a public repository and which the provider keeps when it is not set. Remove what the provider treats as unset (empty strings, zeros, `false`, empty lists) and keep every block. Add `prevent_destroy`. Ignore the container's template: the Proxmox API does not record which template created a container, while the provider requires one, and a difference there would plan a replacement. Keep the `import` block after the import, so that a lost state file imports again instead of creating a duplicate. Delete the draft.
+4. **`fmt`, `validate`, commit, and let CI pass.**
+5. **Read the plan until it shows `1 to import, 0 to add, 0 to destroy`.** A change is acceptable only once it is shown not to reach Proxmox. Caddy's plan filled in the provider's own timeouts and the `vm_id` its importer leaves empty; the provider source at the pinned version sends no request for either, and the measurement in the next step agreed.
+6. **Measure around the apply, and apply exactly the reviewed plan.** On the host, the guest's uptime before and after (`pct exec <vmid> -- cat /proc/uptime`) and the journal, where Proxmox logs every configuration change as `update CT <vmid>` or `update VM <vmid>`. In PowerShell:
+
+   ```bash
+   tofu plan "-out=<name>.tfplan"
+   ```
+
+   ```bash
+   tofu apply <name>.tfplan
+   ```
+
+   Caddy: `1 imported, 1 changed`, the uptime grew by 75 seconds instead of resetting, zero `update CT 101` lines, and the next `plan` reported `No changes`. Delete the saved plan afterwards: it is gitignored, but it holds values from the state.
+
+No new privilege was needed, since an import only reads. What to expect from the guests still to import, from the pinned provider's documentation: bind mounts, which LXCs 104, 105 and 107 have, and feature flags other than `nesting` can only be changed by `root@pam`. An import only needs them described exactly, because nothing is sent, but any later change to them stays manual. VM 102 carries its own list of traps in `CHECKLIST.md`.
 
 ## Rules that are not negotiable here
 

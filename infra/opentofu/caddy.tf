@@ -9,6 +9,9 @@
 # validation, which is why a generated file is a draft and not a result. The
 # MAC address was left out on purpose: this repository is public, and the
 # provider keeps the existing address when none is set.
+#
+# Imported 17/09/2026 without a single change reaching the container. The
+# procedure, and the measurements that showed it, are in infra/README.md.
 
 # Kept after the import rather than deleted. If the state file is ever lost,
 # the next plan imports this container again instead of trying to create a
