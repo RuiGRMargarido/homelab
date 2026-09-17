@@ -19,7 +19,7 @@ Everything here is documented as it was actually built, including the parts that
 | Backups | `rsync` to external SSD plus a verified `mysqldump`, cron-scheduled, restore validated |
 | Monitoring | Uptime Kuma in its own LXC, push-based dead man's switches, alerts to Slack |
 | Infrastructure as Code | OpenTofu creating VMs through a least-privilege Proxmox API token, Ansible roles, validated by GitHub Actions CI |
-| Kubernetes | k3s, a single node on its own VM, built entirely from code; no workloads yet |
+| Kubernetes | k3s, a single node on its own VM, built entirely from code; one test workload so far, applied from the repository |
 | Planned | Prometheus + Grafana, moving Nextcloud and Jellyfin onto k3s |
 
 Hardware: Dell OptiPlex 3060 Micro (i5-8500T, 24GB RAM), 1TB HDD, 1TB external SSD for backups, TP-Link TL-SG608E managed switch.
@@ -48,7 +48,7 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 | 2. VLANs and firewall | **In progress** (network built; WireGuard, TrueNAS, Nextcloud and Jellyfin migrated. Caddy and the media automation stack remain on the flat network, and the inter-zone rules are still permissive) |
 | 2b. Media automation | **Done** (hardware transcoding, *arr stack behind a VPN kill-switch) |
 | 3. Storage / RAID | **Conditional**, with documented triggers - not scheduled work |
-| 4. IaC and Kubernetes | **In progress** (OpenTofu, Ansible and CI working; a single-node k3s cluster created and installed entirely from code. Importing the existing VMs and the first workloads remain) |
+| 4. IaC and Kubernetes | **In progress** (OpenTofu, Ansible and CI working; a single-node k3s cluster created and installed entirely from code, with a first test workload applied from the repository. Importing the existing VMs and the real workloads remain) |
 | 5. Monitoring and alerting | **Done** (Uptime Kuma, push heartbeats from host and guests, Slack alerts) |
 | 6. Documentation tooling | Not started |
 
@@ -98,6 +98,7 @@ These are the parts worth reading if you want to see how problems were approache
 | [MONITORING.md](docs/MONITORING.md) | How the platform watches itself: push-based dead man's switches, thresholds drawn from real incidents, and what each alert means |
 | [WORKFLOW.md](docs/WORKFLOW.md) | Where each tool runs and how the workflow fits together |
 | [infra/README.md](infra/README.md) | Infrastructure as code: where each tool runs, how a node goes from nothing to a running k3s, and how to run it |
+| [infra/kubernetes/README.md](infra/kubernetes/README.md) | Workloads on k3s: their conventions, how they are applied, and the path of a request to a pod |
 | [HARDWARE.md](docs/HARDWARE.md) | Hardware criteria and options considered |
 
 ## A note on secrets

@@ -133,7 +133,7 @@ Reference for writing the restricted firewall rules that are still missing (see 
 | Jellyfin | 1900, 7359 | UDP | Local network auto-discovery *(optional)* |
 | k3s-1 | 22 | TCP | SSH, for Ansible (key only) |
 | k3s-1 | 6443 | TCP | Kubernetes API, for `kubectl` |
-| k3s-1 | 80, 443 | TCP | Traefik, the ingress controller k3s installs by default. Answers `404` while nothing is deployed behind it (measured 17/09/2026) |
+| k3s-1 | 80, 443 | TCP | Traefik, the ingress controller k3s installs by default, behind its ServiceLB. `/whoami` reaches the test workload; any other path answers `404` |
 | Caddy | 80, 443 | TCP | HTTP and HTTPS |
 | Switch | 80 | TCP | Management web interface |
 

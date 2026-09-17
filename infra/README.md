@@ -61,7 +61,7 @@ flowchart LR
 
 **Nothing of k3s runs on the PC.** `kubectl` is a client that turns commands into HTTPS requests, and the kubeconfig is an address plus a credential. The server, its database and every container live in VM 109.
 
-k3s runs with its packaged components enabled, Traefik among them, which is why ports 80 and 443 on the node already answer `404` with nothing deployed. When Ansible or `kubectl` cannot reach the node, [NETWORK.md, Flow 4](../docs/NETWORK.md#flow-4-the-home-pc-administers-the-zones-through-its-tunnel) walks the path hop by hop, with the test for each one.
+k3s runs with its packaged components enabled, Traefik among them, which is why ports 80 and 443 answer on the node itself: `/whoami` reaches the test workload, and any other path gets a `404`. What runs inside the cluster, its conventions and the path of a request to a pod are in [`kubernetes/README.md`](kubernetes/README.md). When Ansible or `kubectl` cannot reach the node, [NETWORK.md, Flow 4](../docs/NETWORK.md#flow-4-the-home-pc-administers-the-zones-through-its-tunnel) walks the path hop by hop, with the test for each one.
 
 WSL2 is itself a lightweight VM that Windows starts on demand, and three of its properties have already shaped this tree:
 
@@ -176,6 +176,8 @@ A second run must report `changed=0`. That is the test that the roles describe a
 ```bash
 wsl -d Ubuntu -- bash -lc "KUBECONFIG=~/.kube/homelab-k3s.yaml kubectl get nodes -o wide"
 ```
+
+Workloads inside the cluster are applied one folder at a time, with `kubectl diff -k` as the plan: see [`kubernetes/README.md`](kubernetes/README.md#running-it).
 
 ## Rules that are not negotiable here
 

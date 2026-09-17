@@ -20,7 +20,7 @@ graph TB
     subgraph OP["OptiPlex server (Proxmox)"]
         PVM["Bare VMs and LXCs<br/>TrueNAS, WireGuard, Caddy, dedicated firewall"]
         UK["LXC 108 monitor<br/>Uptime Kuma, deliberately outside k3s"]
-        K3S["k3s cluster, VM 109<br/>running, no workloads yet<br/>planned: Jellyfin, Nextcloud, Prometheus/Grafana"]
+        K3S["k3s cluster, VM 109<br/>running, one test workload<br/>planned: Jellyfin, Nextcloud, Prometheus/Grafana"]
     end
 
     SL[Slack<br/>receives the alerts]
