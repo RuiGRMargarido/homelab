@@ -1,0 +1,15 @@
+# One stable address inside the cluster for however many pods exist. The pods
+# come and go with new addresses; the Service follows them by label.
+apiVersion: v1
+kind: Service
+metadata:
+  name: whoami
+  labels:
+    app.kubernetes.io/name: whoami
+spec:
+  selector:
+    app.kubernetes.io/name: whoami
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

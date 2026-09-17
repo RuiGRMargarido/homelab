@@ -1,0 +1,12 @@
+# A namespace of its own, so the workload can be removed whole, and under the
+# "restricted" Pod Security standard: the API server itself refuses any pod
+# here that runs as root, keeps Linux capabilities or can escalate privileges.
+# Pinned to the cluster's minor version, so an upgrade does not change what is
+# enforced without anyone deciding it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: whoami
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.36

@@ -1,0 +1,17 @@
+# The first workload on k3s, deliberately small. It exists to drive the whole
+# loop by code, from the repository to a response over the network, not for
+# what it serves. Applied, compared and removed as one unit:
+#
+#   kubectl apply -k infra/kubernetes/whoami
+#   kubectl diff -k infra/kubernetes/whoami     # no output: live matches the repo
+#   kubectl delete -k infra/kubernetes/whoami
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: whoami
+
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml

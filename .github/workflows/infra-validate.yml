@@ -57,10 +57,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Both steps below are guarded rather than assumed. These folders are
-      # scaffolded and still empty, and a linter pointed at nothing either
-      # fails for the wrong reason or passes without looking, and a job that
-      # passes without looking is worse than no job at all.
+      # Both steps below are guarded rather than assumed. The folders were
+      # scaffolded empty, and a linter pointed at nothing either fails for the
+      # wrong reason or passes without looking, and a job that passes without
+      # looking is worse than no job at all. Both now have content to check.
       - name: ansible-lint
         run: |
           if [ -z "$(find infra/ansible -name '*.yml' -o -name '*.yaml' 2>/dev/null)" ]; then
@@ -79,4 +79,8 @@ jobs:
           curl -sSL -o kubeconform.tar.gz \
             https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
           tar xf kubeconform.tar.gz kubeconform
-          ./kubeconform -summary -strict infra/kubernetes
+          # Schemas of the exact version the cluster runs, not "master": a field
+          # that only exists in a newer Kubernetes must fail here, not on apply.
+          # Kustomization files are kustomize's own input, not API objects, and
+          # have no schema to check against.
+          ./kubeconform -summary -strict -kubernetes-version 1.36.4 -skip Kustomization infra/kubernetes

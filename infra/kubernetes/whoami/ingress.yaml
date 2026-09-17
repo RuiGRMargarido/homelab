@@ -1,0 +1,22 @@
+# Reached through the Traefik that k3s runs by default, on the node's own ports
+# 80 and 443. There is no host rule because this homelab has no local names
+# (decided 11/08/2026), so a path prefix is what keeps this route from catching
+# every request that reaches the node.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: whoami
+  labels:
+    app.kubernetes.io/name: whoami
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
+          - path: /whoami
+            pathType: Prefix
+            backend:
+              service:
+                name: whoami
+                port:
+                  name: http
