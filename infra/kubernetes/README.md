@@ -9,7 +9,7 @@ One folder per workload, each a kustomization that is applied, compared and remo
 | Folder | What | State |
 |---|---|---|
 | `whoami/` | A tiny HTTP server that answers with the request it received and the pod that answered | Running since 17/09/2026, kept on purpose as a canary: if it answers, the node, Traefik, the Service and a pod all work |
-| `monitoring/` | Prometheus and Grafana, from the community chart `kube-prometheus-stack`, installed with Helm | Written 18/09/2026; the procedure and what the chart produces are in [its README](monitoring/README.md) |
+| `monitoring/` | Prometheus and Grafana, from the community chart `kube-prometheus-stack`, installed with Helm | Installed and verified 18/09/2026; the procedure, what the chart produces and what was measured are in [its README](monitoring/README.md) |
 | `truenas-storage/` | Placeholder for Phase 4b | Empty |
 
 Our own manifests use kustomize, which is built into `kubectl`, so no extra tool is involved. Helm is for third-party charts, the first being `kube-prometheus-stack`, and for those the repository keeps only the values that differ from the chart.

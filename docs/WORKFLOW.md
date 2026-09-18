@@ -20,7 +20,7 @@ graph TB
     subgraph OP["OptiPlex server (Proxmox)"]
         PVM["Bare VMs and LXCs<br/>TrueNAS, WireGuard, Caddy, dedicated firewall"]
         UK["LXC 108 monitor<br/>Uptime Kuma, deliberately outside k3s"]
-        K3S["k3s cluster, VM 109<br/>running, one test workload<br/>planned: Jellyfin, Nextcloud, Prometheus/Grafana"]
+        K3S["k3s cluster, VM 109<br/>running: a test workload, Prometheus/Grafana<br/>planned: Jellyfin, Nextcloud"]
     end
 
     SL[Slack<br/>receives the alerts]
@@ -47,7 +47,7 @@ graph TB
 | TrueNAS, WireGuard, Caddy, dedicated firewall | Services that run bare, outside k3s - TrueNAS because of disk passthrough; WireGuard and the firewall because they mediate the network zones; Caddy has not been migrated yet | **OptiPlex**, each in its own VM created by Proxmox |
 | Jellyfin, Nextcloud | Application services - media server and personal cloud | **OptiPlex**, today in their own LXCs (105 and 104, Trusted); planned to move into k3s as workloads |
 | Uptime Kuma | Watching whether the services above are alive, and the dead man's switch for the scheduled jobs through Push monitors | **OptiPlex**, in its **own LXC (108)**, deliberately outside k3s - the watcher has to be simpler than what it watches |
-| Prometheus/Grafana | History and graphs of CPU/RAM/disk, which answers "why is this slow" rather than "is it up" | **OptiPlex**, planned as a workload inside k3s (not installed yet) |
+| Prometheus/Grafana | History and graphs of CPU/RAM/disk, which answers "why is this slow" rather than "is it up" | **OptiPlex**, inside k3s since 18/09/2026, installed with Helm from `infra/kubernetes/monitoring/`. It keeps history and does not alert: the alerts stay with Uptime Kuma |
 | Slack | Where the alerts land (just an app/site, nothing to install in the homelab) | **Cloud** (slack.com) - the OptiPlex sends messages to it |
 
 ## The typical workflow, end to end
@@ -77,3 +77,4 @@ OpenTofu runs natively on Windows without trouble, but **Ansible does not run on
 - 11/08/2026: translated to English.
 - 17/09/2026: `kubectl` moved into WSL2, at the server's exact version and beside the kubeconfig, and the technical note gained a plain explanation of what WSL2 is, after the natural question of whether k3s had ended up inside it. It had not: it runs in VM 109, and the diagram now says so, with the cluster shown as running and still empty. The rows for Jellyfin, Nextcloud and Prometheus/Grafana described the plan as if it were current, so they now separate where each runs today from where it is headed. Ansible and `kubectl` now show the WireGuard tunnel as their path. Two workflow steps still described Uptime Kuma inside k3s, missed by the correction of 11/09, and were fixed.
 - 18/09/2026: Helm moved into WSL2 beside `kubectl`, for `kube-prometheus-stack`, the first chart.
+- 18/09/2026: Prometheus and Grafana went from planned to running inside k3s, in the diagram and the table.
