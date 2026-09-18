@@ -10,6 +10,9 @@
 # brought no block back, as with Caddy. The MAC address is left out on
 # purpose, since this repository is public and the provider keeps the existing
 # address when none is set.
+#
+# Imported 18/09/2026 without a single change reaching the container. The
+# procedure, and the measurements that showed it, are in infra/README.md.
 
 # Kept after the import rather than deleted. If the state file is ever lost,
 # the next plan imports this container again instead of trying to create a
@@ -58,7 +61,10 @@ resource "proxmox_virtual_environment_container" "uptime_kuma" {
     size         = 8
   }
 
-  # Only `root@pam` may change any flag other than `nesting`.
+  # Docker runs inside this container: beside `eth0`, the import read the
+  # addresses of `docker0` and of a user-defined Docker network. Docker in an
+  # unprivileged container needs both flags, and only `root@pam` may change
+  # any flag other than `nesting`.
   features {
     nesting = true
     keyctl  = true
@@ -90,8 +96,9 @@ resource "proxmox_virtual_environment_container" "uptime_kuma" {
 
   # The Proxmox API does not record which template a container was created
   # from, so the import brings this back empty while the provider requires it.
-  # This is the Debian 12 template present on the node, recorded for a rebuild,
-  # and ignored in comparisons below.
+  # The container runs Debian 12.12, the version of the template present on
+  # the node, which is recorded here for a rebuild and ignored in comparisons
+  # below.
   operating_system {
     template_file_id = "local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst"
     type             = "debian"

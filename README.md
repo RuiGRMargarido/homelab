@@ -48,7 +48,7 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 | 2. VLANs and firewall | **In progress** (network built; WireGuard, TrueNAS, Nextcloud and Jellyfin migrated. Caddy and the media automation stack remain on the flat network, and the inter-zone rules are still permissive) |
 | 2b. Media automation | **Done** (hardware transcoding, *arr stack behind a VPN kill-switch) |
 | 3. Storage / RAID | **Conditional**, with documented triggers - not scheduled work |
-| 4. IaC and Kubernetes | **In progress** (OpenTofu, Ansible and CI working; a single-node k3s cluster created and installed entirely from code, with a first test workload applied from the repository, and two existing guests imported. Importing the rest and the real workloads remain) |
+| 4. IaC and Kubernetes | **In progress** (OpenTofu, Ansible and CI working; a single-node k3s cluster created and installed entirely from code, with a first test workload applied from the repository, and three existing guests imported. Importing the rest and the real workloads remain) |
 | 5. Monitoring and alerting | **Done** (Uptime Kuma, push heartbeats from host and guests, Slack alerts) |
 | 6. Documentation tooling | Not started |
 
