@@ -140,6 +140,7 @@ Nothing secret is in this tree, and the `.gitignore` is what enforces it rather 
   Measured on 11/09/2026, on a real state file rather than a hypothetical path, because the patterns before it had only ever been tested against imagined filenames: the API token does **not** appear in the state. That is worth knowing and worth not over-reading. It is absent because provider configuration is not persisted, not because state is safe. There are no resources yet; the day a VM exists with a cloud-init password or an injected key, those attributes land in the state in clear. The rule has not saved us yet, which is different from not being needed.
 
   **Measured again on 17/09/2026, with VM 109 in the state**, by a script that answers yes or no and never prints a value: still no token, no private key and no password, since cloud-init is given none. It does hold the injected SSH **public** key, which is not a secret, and the VM's MAC address alongside the addresses the guest agent reports, details this repository keeps out of its public documents on purpose. So the rule is no longer hypothetical.
+- `*.tfplan` is ignored too, and matters as much. A saved plan carries a copy of the state and, unlike the state, the API token in clear text; what it holds is under [Running it, in order](#running-it-in-order).
 - `.terraform.lock.hcl` **is** committed, deliberately. It pins the provider hashes and is what makes `init` reproducible.
 - The k3s kubeconfig is an administrator credential for the cluster. The `k3s_server` role writes it to `~/.kube/homelab-k3s.yaml` inside WSL2, directory `0700` and file `0600`, outside this repository and outside `/mnt/c`. It is rebuilt field by field rather than copied: `server:` points at `10.10.20.11` instead of the `127.0.0.1` k3s writes, and the cluster, user and context are named `homelab-k3s` instead of `default`. It is a file of its own rather than `~/.kube/config`, selected with `KUBECONFIG=`, so nothing else is overwritten or merged into it. Recorded in `SECRETS.md`.
 
@@ -178,6 +179,24 @@ And only then, deliberately and never with `-auto-approve`:
 tofu -chdir=infra/opentofu apply
 ```
 
+When the plan touches a guest that matters, save it and apply that file instead, so that what is applied is exactly what was read:
+
+```bash
+tofu -chdir=infra/opentofu plan "-out=<name>.tfplan"
+```
+
+```bash
+tofu -chdir=infra/opentofu apply <name>.tfplan
+```
+
+**What a saved plan is**, measured on 18/09/2026 on a throwaway one with a fake token. The extension is only a convention; the file is a zip holding:
+
+- the actions it computed, and the value of every input variable, **the API token included, in clear text**. `sensitive = true` hides a value on screen, not in the file;
+- the state of every managed resource, as it was before and after the refresh;
+- a copy of every `.tf` file in the folder, and that copy is what `apply` runs. The code was edited between the two commands, and the version that had been read was the one applied.
+
+It is applied without asking for `yes`, because reading it was the approval. And it is used once: when the state moves, it is refused as `Saved plan is stale`, whether it was applied or something else changed the state first. Delete it right after the `apply`, and keep the `.tfplan` extension, since that is the pattern the `.gitignore` catches: under any other name, the file would be one `git add .` away from publishing the token.
+
 Ansible and `kubectl` run from WSL2, not from PowerShell, and both need the WireGuard tunnel up:
 
 ```bash
@@ -194,7 +213,7 @@ Workloads inside the cluster are applied one folder at a time, with `kubectl dif
 
 ## Importing a guest that already exists
 
-Proven on LXC 101, Caddy, on 17/09/2026: the least valuable guest, chosen on purpose, with VM 102 last. An import sends nothing to Proxmox. It records in the state that a resource block is an object that already exists, and the test afterwards is the one used everywhere else: `plan` must report no changes.
+Proven on LXC 101, Caddy, on 17/09/2026, and on LXC 107, the stopped \*arr stack, on 18/09/2026: the least valuable guests, chosen on purpose, with VM 102 last. An import sends nothing to Proxmox. It records in the state that a resource block is an object that already exists, and the test afterwards is the one used everywhere else: `plan` must report no changes.
 
 1. **Write only the `import` block**, with `id = "pve/<vmid>"`. Do not commit it yet: an import block without its resource fails `tofu validate` in CI.
 2. **Let OpenTofu draft the resource from the real guest**, in PowerShell from `infra/opentofu`, with the quotes explained above. Planning may stop on a validation error; the draft is written anyway.
@@ -203,10 +222,10 @@ Proven on LXC 101, Caddy, on 17/09/2026: the least valuable guest, chosen on pur
    tofu plan "-generate-config-out=<name>_generated.tf"
    ```
 
-3. **Treat the draft as a draft.** Caddy's carried `entrypoint = ""`, which the provider's own validation rejects, and the MAC address, which does not belong in a public repository and which the provider keeps when it is not set. Remove what the provider treats as unset (empty strings, zeros, `false`, empty lists) and keep every block. Add `prevent_destroy`. Ignore the container's template: the Proxmox API does not record which template created a container, while the provider requires one, and a difference there would plan a replacement. Keep the `import` block after the import, so that a lost state file imports again instead of creating a duplicate. Delete the draft.
+3. **Treat the draft as a draft.** Both drafts carried values the provider's own validation rejects: an empty `entrypoint` and, on 107, `cpu.units = 0`, which is what the host reports when no CPU weight is set. Both carried the MAC address, which does not belong in a public repository and which the provider keeps when it is not set. Remove what only repeats a default (empty strings, zeros, empty lists) and keep every block. **Check every `false` before removing it**: `started` and `start_on_boot` default to `true`, so a stopped guest needs `started = false` written down, or the apply starts it. Add `prevent_destroy`. Ignore the container's template: the Proxmox API does not record which template created a container, while the provider requires one, and a difference there would plan a replacement. Keep the `import` block after the import, so that a lost state file imports again instead of creating a duplicate. Delete the draft.
 4. **`fmt`, `validate`, commit, and let CI pass.**
-5. **Read the plan until it shows `1 to import, 0 to add, 0 to destroy`.** A change is acceptable only once it is shown not to reach Proxmox. Caddy's plan filled in the provider's own timeouts and the `vm_id` its importer leaves empty; the provider source at the pinned version sends no request for either, and the measurement in the next step agreed.
-6. **Measure around the apply, and apply exactly the reviewed plan.** On the host, the guest's uptime before and after (`pct exec <vmid> -- cat /proc/uptime`) and the journal, where Proxmox logs every configuration change as `update CT <vmid>` or `update VM <vmid>`. In PowerShell:
+5. **Read the plan until it shows `1 to import, 0 to add, 0 to destroy`.** A change is acceptable only once it is shown not to reach Proxmox. Both plans only filled in the provider's own timeouts and the `vm_id` its importer leaves empty; the provider source at the pinned version sends no request for either, and the measurement in the next step agreed.
+6. **Measure around the apply, and apply exactly the reviewed plan**, saved as described above. In PowerShell:
 
    ```bash
    tofu plan "-out=<name>.tfplan"
@@ -216,9 +235,31 @@ Proven on LXC 101, Caddy, on 17/09/2026: the least valuable guest, chosen on pur
    tofu apply <name>.tfplan
    ```
 
-   Caddy: `1 imported, 1 changed`, the uptime grew by 75 seconds instead of resetting, zero `update CT 101` lines, and the next `plan` reported `No changes`. Delete the saved plan afterwards: it is gitignored, but it holds values from the state.
+   On the host, three signals, each answering a different question:
 
-No new privilege was needed, since an import only reads. What to expect from the guests still to import, from the pinned provider's documentation: bind mounts, which LXCs 104, 105 and 107 have, and feature flags other than `nesting` can only be changed by `root@pam`. An import only needs them described exactly, because nothing is sent, but any later change to them stays manual. VM 102 carries its own list of traps in `CHECKLIST.md`.
+   - **Did anything write?** The API's access log records every request with its method and the identity behind it. An import only reads, so every request for the guest must be a `GET`; a change would be a `PUT` or a `POST`. It can be read afterwards too, for as long as the log is kept. The first command must print nothing, apart from consoles opened in the web UI (`termproxy`); the second must count more than zero, which shows the log covers the run and the filter catches the token:
+
+     ```bash
+     zcat -f /var/log/pveproxy/access.log* | grep -E '/(lxc|qemu)/<vmid>[/ ?]' | grep -v '"GET '
+     ```
+
+     ```bash
+     zcat -f /var/log/pveproxy/access.log* | grep -E '/(lxc|qemu)/<vmid>[/ ?]' | grep -c 'opentofu@pve'
+     ```
+
+   - **Did the configuration change?** Its modification time moves with any write, in `/etc/pve/lxc/` for a container and `/etc/pve/qemu-server/` for a VM:
+
+     ```bash
+     stat -c '%n %y' /etc/pve/lxc/<vmid>.conf
+     ```
+
+   - **Was the guest restarted?** For a running guest, its uptime before and after, `pct exec <vmid> -- cat /proc/uptime`; for a stopped one, `pct status <vmid>`.
+
+   The host's journal is not on the list for a container. It was counted for Caddy, and reading the source on 18/09/2026 showed it could not have said anything: `pve-container` logs no configuration change except a disk resize, while `qemu-server` logs every change to a VM as `update VM <vmid>`, so for VMs it remains a fourth signal. The host keeps its clock in UTC, one hour behind the PC in summer.
+
+   Caddy: `1 imported, 1 changed`, the uptime grew by 75 seconds instead of resetting, and the next `plan` reported `No changes`. 107: the same counts, still `stopped` afterwards, and `No changes`. For both, read on 18/09/2026: the access log held 39 requests from the token for the two containers, every one a `GET`, and their configurations had last been written on 08/09 and 09/09, days before either import. Delete the saved plan afterwards.
+
+No new privilege was needed for either, since an import only reads, and 107 tested that where it could have failed. It carries three kinds of option that Proxmox lets only `root@pam` change, as `pve-container`'s permission check shows: two bind mounts, a device passthrough, and the `keyctl` flag, since any feature flag other than `nesting` is reserved. The token matched all of them without a write. Later on, the provider sends a block only when it changes, so the token can still change 107's memory or cores, while a change to any of those blocks has to be made by hand, as `root@pam`. LXCs 104 and 105 have bind mounts too. VM 102 carries its own list of traps in `CHECKLIST.md`.
 
 ## Rules that are not negotiable here
 

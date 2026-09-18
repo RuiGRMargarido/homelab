@@ -1,9 +1,9 @@
 variable "proxmox_endpoint" {
   description = <<-EOT
-    Proxmox API endpoint. The flat-network address of the host, which is the
-    only one reachable from the PC: the Management address 10.10.30.2:8006
-    does not answer from here. See infra/README.md for why that matters and
-    what the correct long-term fix is.
+    Proxmox API endpoint. The flat-network address of the host, which needs
+    no tunnel. The Management address 10.10.30.2:8006 has answered too since
+    the PC started using its WireGuard tunnel on 16/09/2026; moving there is
+    a decision still open. See infra/README.md.
   EOT
   type        = string
   default     = "https://192.168.1.206:8006/"

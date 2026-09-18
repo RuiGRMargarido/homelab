@@ -9,6 +9,9 @@
 # `cpu.units = 0`, which is what the host reports when no CPU weight is set.
 # The MAC address is left out on purpose, since this repository is public and
 # the provider keeps the existing address when none is set.
+#
+# Imported 18/09/2026 without a single change reaching the container. The
+# procedure, and the measurements that showed it, are in infra/README.md.
 
 # Kept after the import rather than deleted. If the state file is ever lost,
 # the next plan imports this container again instead of trying to create a
@@ -25,7 +28,8 @@ resource "proxmox_virtual_environment_container" "arr" {
   start_on_boot = true
 
   # Stopped since 08/09/2026, and it stays stopped: the VPN credentials still
-  # fail, and starting it is a decision, not a side effect of an import.
+  # fail, and starting it is a decision, not a side effect of an import. This
+  # line cannot be pruned as a default: the provider's default is `true`.
   started = false
 
   delete_unreferenced_disks_on_destroy = false
@@ -58,14 +62,16 @@ resource "proxmox_virtual_environment_container" "arr" {
     size         = 8
   }
 
-  # Docker inside an unprivileged container needs both.
+  # Docker inside an unprivileged container needs both. Only `root@pam` may
+  # change any flag other than `nesting`.
   features {
     nesting = true
     keyctl  = true
   }
 
   # `dev1` on the host: the tunnel device gluetun opens for the VPN. Without
-  # it the download client has no kill switch to hide behind.
+  # it the download client has no kill switch to hide behind. Only `root@pam`
+  # may configure a device passthrough.
   device_passthrough {
     path = "/dev/net/tun"
     mode = "0660"
