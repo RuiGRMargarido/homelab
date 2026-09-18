@@ -82,5 +82,41 @@ jobs:
           # Schemas of the exact version the cluster runs, not "master": a field
           # that only exists in a newer Kubernetes must fail here, not on apply.
           # Kustomization files are kustomize's own input, not API objects, and
-          # have no schema to check against.
-          ./kubeconform -summary -strict -kubernetes-version 1.36.4 -skip Kustomization infra/kubernetes
+          # have no schema to check against. Helm values files are not API
+          # objects either; what they produce is checked in the helm job below.
+          ./kubeconform -summary -strict -kubernetes-version 1.36.4 -skip Kustomization \
+            -ignore-filename-pattern 'values\.yaml$' infra/kubernetes
+
+  helm:
+    name: Helm charts (render and validate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/setup-helm@v5
+        with:
+          version: v4.3.0
+
+      # Fetched from the chart's GitHub release and checked against the digest
+      # it was reviewed with, so a changed file fails here instead of being
+      # rendered as if it were the same chart.
+      - name: fetch kube-prometheus-stack 91.4.1
+        run: |
+          curl -fsSL --retry 3 -o kps.tgz \
+            https://github.com/prometheus-community/helm-charts/releases/download/kube-prometheus-stack-91.4.1/kube-prometheus-stack-91.4.1.tgz
+          echo "1bd5e7a88e758ed3ec22db0fe6e72b1352f3f0e7e5a93c79979f7edf361becdb  kps.tgz" | sha256sum -c -
+
+      # Rendered with the repository's values for the cluster's exact version,
+      # then checked like the manifests: built-in kinds against the 1.36.4
+      # schemas, the operator's own kinds against the community CRD catalog.
+      - name: render and validate monitoring
+        run: |
+          helm template kps ./kps.tgz --namespace monitoring --kube-version 1.36.4 \
+            -f infra/kubernetes/monitoring/values.yaml > monitoring.yaml
+          curl -sSL -o kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar xf kubeconform.tar.gz kubeconform
+          ./kubeconform -summary -strict -kubernetes-version 1.36.4 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            monitoring.yaml

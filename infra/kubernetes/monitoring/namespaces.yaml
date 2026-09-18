@@ -1,0 +1,21 @@
+# Two namespaces, so that the one exception to the restricted Pod Security
+# standard covers a single DaemonSet and nothing else. Both pinned to the
+# cluster's minor version, as for every workload here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.36
+---
+# node-exporter only: it reads the node itself, through the host network, the
+# host PID namespace and the node's /proc, /sys and root filesystem, which no
+# stricter standard allows. Nothing else is to be deployed here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring-node
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: v1.36

@@ -9,13 +9,14 @@ One folder per workload, each a kustomization that is applied, compared and remo
 | Folder | What | State |
 |---|---|---|
 | `whoami/` | A tiny HTTP server that answers with the request it received and the pod that answered | Running since 17/09/2026, kept on purpose as a canary: if it answers, the node, Traefik, the Service and a pod all work |
-| `monitoring/`, `truenas-storage/` | Placeholders for Phase 4b | Empty |
+| `monitoring/` | Prometheus and Grafana, from the community chart `kube-prometheus-stack`, installed with Helm | Written 18/09/2026; the procedure and what the chart produces are in [its README](monitoring/README.md) |
+| `truenas-storage/` | Placeholder for Phase 4b | Empty |
 
-Our own manifests use kustomize, which is built into `kubectl`, so no extra tool is involved. Helm stays for third-party charts, the first planned being `kube-prometheus-stack`.
+Our own manifests use kustomize, which is built into `kubectl`, so no extra tool is involved. Helm is for third-party charts, the first being `kube-prometheus-stack`, and for those the repository keeps only the values that differ from the chart.
 
 ## Conventions, set by the first workload
 
-- **A namespace per workload, under the `restricted` Pod Security standard**, pinned to the cluster's minor version. The API server itself refuses pods that run as root, keep capabilities or can escalate privileges. Seen refusing, not only accepting: on 17/09/2026 a pod submitted without those settings, as a server-side dry run, was rejected with four violations.
+- **A namespace per workload, under the `restricted` Pod Security standard**, pinned to the cluster's minor version. The API server itself refuses pods that run as root, keep capabilities or can escalate privileges. Seen refusing, not only accepting: on 17/09/2026 a pod submitted without those settings, as a server-side dry run, was rejected with four violations. **The one exception is `monitoring-node`**, `privileged`, for node-exporter alone, which has to read the node itself; it has a namespace of its own so the exception covers nothing else.
 - **Images pinned by tag and digest.** The tag is for the reader; the digest is what cannot be moved to another image.
 - **A memory limit and no CPU limit.** Memory cannot be taken back from a process once given; CPU can, and a CPU limit only adds throttling.
 - **Readiness and liveness probes** on every container that serves something.
@@ -39,6 +40,8 @@ kubectl delete -k infra/kubernetes/whoami
 ```
 
 `kubectl diff` is the plan. No output and exit code `0` mean the cluster matches the repository, which is the Kubernetes equivalent of OpenTofu's `No changes` and Ansible's `changed=0`. Pods deleted or restarted do not count, because the repository describes the Deployment, not its pods.
+
+A chart installed with Helm follows its own procedure, in its folder's README, with the same rule of a plan before every change.
 
 **The first time a workload is applied, create its namespace on its own first** (`kubectl apply -f <folder>/namespace.yaml`). `diff` simulates the change on the server, and a simulated namespace is not created, so every object meant to live in it would fail with "namespace not found".
 

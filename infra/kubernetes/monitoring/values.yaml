@@ -1,0 +1,156 @@
+# Values for kube-prometheus-stack 91.4.1, the release named `kps` in the
+# `monitoring` namespace. How to fetch the chart, check it and install it is in
+# README.md beside this file.
+#
+# Only what differs from the chart's defaults is here, and every change has a
+# reason written beside it. Everything else is the chart as published.
+
+# Alerting stays where it is: Uptime Kuma in LXC 108, into Slack. The monitor
+# has to be simpler than what it watches, and this stack runs inside the
+# heaviest thing in the project. Prometheus is here for history, for "why is
+# it slow" and "this has been degrading for weeks". Its rules still evaluate
+# and show in its own UI; nothing sends them anywhere.
+alertmanager:
+  enabled: false
+
+# k3s runs the controller manager, the scheduler and the proxy inside its own
+# single process, and a single-node k3s keeps its state in SQLite, not etcd.
+# The chart's monitors for them would look for pods that do not exist and
+# report the components as down forever. Their rules go with them, and so do
+# Alertmanager's, which would otherwise keep evaluating against nothing.
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+
+defaultRules:
+  rules:
+    alertmanager: false
+    etcd: false
+    kubeControllerManager: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeProxy: false
+    windows: false
+
+# Sizes below were chosen for a node measured on 18/09/2026 with about 2.7GB
+# available: memory requests add up to roughly 780Mi. Memory is limited so a
+# leak stays inside its own pod; CPU is only requested, never limited, the
+# same convention as the whoami workload.
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        memory: 48Mi
+
+prometheus:
+  prometheusSpec:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 384Mi
+      limits:
+        memory: 1Gi
+
+    # Kept for 15 days or 8GB, whichever comes first. The size is the limit
+    # that actually holds: the local-path provisioner k3s ships does not
+    # enforce the volume's size, so the 10Gi below is a declaration and the
+    # retention size is what keeps the node's 32GB disk from filling.
+    retention: 15d
+    retentionSize: 8GB
+
+    # Without this the chart keeps the data in an emptyDir, which is lost
+    # every time the pod restarts.
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 96Mi
+
+# node-exporter reads the node itself: host network, host PID and the host's
+# /proc, /sys and root filesystem. That is the one thing in this stack the
+# restricted Pod Security standard forbids, so it runs in a namespace of its
+# own, `monitoring-node`, the only one allowed to be privileged. Everything
+# else stays in `monitoring`, under `restricted`.
+prometheus-node-exporter:
+  namespaceOverride: monitoring-node
+  resources:
+    requests:
+      cpu: 10m
+      memory: 24Mi
+    limits:
+      memory: 64Mi
+
+grafana:
+  # The admin credentials come from a Secret created by hand before the
+  # install, never from this file: the chart's default password is public.
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+
+  # The host keeps its clock in UTC and the PC does not; dashboards follow
+  # whoever is looking at them.
+  defaultDashboardsTimezone: browser
+
+  # Served under /grafana through the Traefik k3s ships, the same way as
+  # /whoami, and reached from the PC through the WireGuard tunnel.
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    path: /grafana
+    pathType: Prefix
+    hosts: []
+
+  grafana.ini:
+    server:
+      domain: 10.10.20.11
+      root_url: "%(protocol)s://%(domain)s/grafana/"
+      serve_from_sub_path: true
+    # Nothing reports home: the version is pinned by the chart anyway, and
+    # usage statistics have no business leaving the Trusted zone.
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+      check_for_plugin_updates: false
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 384Mi
+
+  # The two sidecars that load the dashboards and the data source the chart
+  # provides, from ConfigMaps.
+  sidecar:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
