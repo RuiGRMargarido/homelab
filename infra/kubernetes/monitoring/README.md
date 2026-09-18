@@ -57,10 +57,17 @@ From WSL2, at the repository root, with the tunnel up and `KUBECONFIG=~/.kube/ho
    helm upgrade --install kps /tmp/kps.tgz -n monitoring -f infra/kubernetes/monitoring/values.yaml --wait --timeout 10m
    ```
 
-The first install has no plan beyond the reading above. Everything it creates is new, and the chart's own resource types do not exist until it installs them, so neither `kubectl diff` nor Helm's server-side dry run can simulate it. **From the second change on, the plan is a comparison** of what is installed with what would be, before the `upgrade`. Hooks are left out on both sides, since Helm stores them apart from the manifest:
+The first install has no plan beyond the reading above. Everything it creates is new, and the chart's own resource types do not exist until it installs them, so neither `kubectl diff` nor Helm's server-side dry run can simulate it. **From the second change on, the plan is a comparison** of what is installed with what would be, before the `upgrade`. Hooks are left out on both sides, since Helm stores them apart from the manifest, and blank lines are ignored with `-B`:
 
 ```bash
-diff <(helm get manifest kps -n monitoring) <(helm template kps /tmp/kps.tgz -n monitoring -f infra/kubernetes/monitoring/values.yaml --no-hooks --kube-version 1.36.4)
+diff -B <(helm get manifest kps -n monitoring) <(helm template kps /tmp/kps.tgz -n monitoring -f infra/kubernetes/monitoring/values.yaml --no-hooks --kube-version 1.36.4)
 ```
 
-Right after the first install this comparison must print nothing. That is how the plan itself gets checked, before it is ever needed.
+Right after the first install this comparison must print nothing, which is how the plan itself gets checked before it is ever needed. Run without `-B` on 18/09/2026, it printed only two blank lines that `helm get manifest` adds at the end: the offline render matched the installed manifest line for line, all 5692 of them.
+
+## Installed, 18/09/2026
+
+- **Every pod running and the volume bound**: Grafana with its two sidecars, the operator, kube-state-metrics and Prometheus in `monitoring`, node-exporter in `monitoring-node`, and the 10Gi volume bound by the local-path provisioner.
+- **Eleven targets, all up**: the kubelet three times (its own metrics, the containers' and the probes'), Prometheus and its config reloader, node-exporter, Grafana, the Kubernetes API, CoreDNS, the operator and kube-state-metrics.
+- **Memory a few minutes after the install**: Grafana 456Mi across its three containers, Prometheus 390Mi, kube-state-metrics 29Mi, the operator 29Mi and node-exporter 12Mi, about 920Mi in all. The node went from 1353Mi, 34% of its memory, to 2658Mi, 67%.
+- **The chart's own notes do not apply here.** They point at a `kps-grafana` Secret for the admin password, which is not created when the credentials come from an existing Secret: the only Secret the chart renders is Prometheus's service account token.
