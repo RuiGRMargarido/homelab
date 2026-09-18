@@ -10,7 +10,7 @@ The reasoning behind each choice lives in [TOOLING.md sections 4 and 5](../docs/
 |---|---|---|
 | `opentofu/` | Creating, importing and destroying VMs and LXCs on Proxmox. The shape of the machine: cores, memory, disks, which VLAN its NIC is tagged into | Windows (PowerShell) |
 | `ansible/` | Configuring the inside of those machines: packages, users, k3s itself | **WSL2**, because Ansible does not run on Windows as a control node |
-| `kubernetes/` | The application workloads on k3s, as manifests and Helm values | **WSL2** (`kubectl`), beside the kubeconfig the Ansible role writes there |
+| `kubernetes/` | The application workloads on k3s, as manifests and Helm values | **WSL2** (`kubectl` and Helm), beside the kubeconfig the Ansible role writes there |
 
 The split is not arbitrary. OpenTofu knows that a VM exists and how big it is, and knows nothing about what is installed inside it. Ansible knows what is installed and cannot create the machine. The seam between them is the machine being reachable over SSH, which is also why that seam is where things break.
 
@@ -27,7 +27,7 @@ flowchart LR
         end
         subgraph WSL["WSL2, a small Linux VM"]
             ANS["Ansible<br/>key in ~/.ssh"]:::wsl
-            KUB["kubectl<br/>kubeconfig in ~/.kube"]:::wsl
+            KUB["kubectl and Helm<br/>kubeconfig in ~/.kube"]:::wsl
         end
     end
 
@@ -56,7 +56,7 @@ flowchart LR
 |---|---|---|---|---|
 | OpenTofu | Windows | Proxmox API, `192.168.1.206:8006` | token `opentofu@pve!provider`, in `terraform.tfvars` | flat network |
 | Ansible | WSL2 | VM 109 over SSH, `10.10.20.11:22` | user `ansible`, key `~/.ssh/homelab_ansible` | WireGuard tunnel |
-| `kubectl` | WSL2 | the k3s API, `10.10.20.11:6443` | `~/.kube/homelab-k3s.yaml` | WireGuard tunnel |
+| `kubectl`, Helm | WSL2 | the k3s API, `10.10.20.11:6443` | `~/.kube/homelab-k3s.yaml` | WireGuard tunnel |
 | k3s | VM 109 `k3s-1` | - | - | - |
 
 **Nothing of k3s runs on the PC.** `kubectl` is a client that turns commands into HTTPS requests, and the kubeconfig is an address plus a credential. The server, its database and every container live in VM 109.
@@ -108,12 +108,12 @@ Three things the diagram makes visible:
 
 ## Prerequisites
 
-Installed 11/09/2026, `kubectl` replaced on 17/09/2026. Versions are recorded because a version skew is the most likely cause of something behaving differently later:
+Installed 11/09/2026, `kubectl` replaced on 17/09/2026, Helm moved on 18/09/2026. Versions are recorded because a version skew is the most likely cause of something behaving differently later:
 
 | Tool | Version | Where |
 |---|---|---|
 | OpenTofu | 1.12.6 | Windows, `winget` |
-| Helm | 4.3.0 | Windows, `winget`. Not used yet; it moves to WSL2 with the first chart, for the same reason as `kubectl` |
+| Helm | 4.3.0 | WSL2, `/usr/local/bin`, since 18/09/2026, for the first chart: from `get.helm.sh` and checked against its published sha256, the same version as the unused `winget` copy on Windows. Built against the Kubernetes 1.37 client, and Helm supports the three minor versions before the one it was built against, so 1.36 is inside the range |
 | `kubectl` | 1.36.4 | WSL2, `/usr/local/bin`, from `dl.k8s.io` and checked against its published sha256. The exact version of the server, so the one-minor skew is not a question. The copies on Windows, Docker Desktop's 1.34.1 and a `winget` 1.37.0, are not used by this project |
 | `ansible-core` | 2.21.4 | WSL2 (Ubuntu 24.04), as `root` |
 | `ansible-lint` | 26.8.0 | WSL2 |

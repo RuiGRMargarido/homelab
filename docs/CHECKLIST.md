@@ -177,7 +177,7 @@ See [TOOLING.md §4-5](TOOLING.md#4-infrastructure-as-code) for the rationale be
 **These were conditional on the RAM upgrade** (see Phase 0), and **the condition was met on 08/09/2026**: the machine went to 24GB, available memory from 2.5GB to 14GB, and swap to zero. They are what the memory was actually for, so what remains is to do them:
 
 - [ ] Migrate Jellyfin and Nextcloud to manifests/Helm on k3s - during the migration both the LXCs and the pods run in parallel, and the end state is the same services with one more layer beneath them
-- [ ] `kube-prometheus-stack` (Prometheus + Grafana + Alertmanager + exporters) - 2 to 4GB on its own. Note that **alerting does not wait for this**: Phase 5 puts Uptime Kuma in a plain LXC precisely so that monitoring does not depend on the heaviest thing in the project
+- [ ] `kube-prometheus-stack` (Prometheus + Grafana + Alertmanager + exporters) - 2 to 4GB on its own, with the chart's defaults. **Measured 18/09/2026, before installing it**: the idle node, meaning k3s with its packaged components and the two `whoami` pods, uses 1.15 to 1.35GB of its 3.9GB, 3% of its two vCPUs and 2GB of its 32GB disk, which leaves about 2.7GB available. So the stack has to be sized to the node rather than taken with its defaults, and the migrations after it are unlikely to fit in the same 4GB. Note that **alerting does not wait for this**: Phase 5 puts Uptime Kuma in a plain LXC precisely so that monitoring does not depend on the heaviest thing in the project
 
 ## Phase 5 - Monitoring and alerting (brought forward 24/08/2026)
 
