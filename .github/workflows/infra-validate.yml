@@ -109,6 +109,8 @@ jobs:
       # Rendered with the repository's values for the cluster's exact version,
       # then checked like the manifests: built-in kinds against the 1.36.4
       # schemas, the operator's own kinds against the community CRD catalog.
+      # Types and patterns are enforced; values that the Kubernetes schemas
+      # only list in a description, such as an Ingress pathType, are not.
       - name: render and validate monitoring
         run: |
           helm template kps ./kps.tgz --namespace monitoring --kube-version 1.36.4 \
