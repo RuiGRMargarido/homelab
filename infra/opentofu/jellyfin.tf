@@ -1,8 +1,9 @@
 # LXC 105, Jellyfin: Docker Compose in Trusted, with the media library on
 # TrueNAS and the iGPU passed in for hardware transcoding. Imported on
 # 18/09/2026 together with LXCs 103 and 104, in a single plan, once the
-# procedure had given the same clean plan three times in a row; see
-# infra/README.md.
+# procedure had given the same clean plan three times in a row, without a
+# single change reaching any of the three. The procedure and the measurements
+# are in infra/README.md.
 #
 # Written from `tofu plan -generate-config-out` and then pruned, the same way
 # as the containers before it. Two values the generator produced failed the

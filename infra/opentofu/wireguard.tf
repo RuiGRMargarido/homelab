@@ -2,7 +2,8 @@
 # administration. The one privileged container in this homelab, as it was
 # created on 29/07/2026. Imported on 18/09/2026 together with LXCs 104 and
 # 105, in a single plan, once the procedure had given the same clean plan
-# three times in a row; see infra/README.md.
+# three times in a row, without a single change reaching any of the three.
+# The procedure and the measurements are in infra/README.md.
 #
 # Written from `tofu plan -generate-config-out` and then pruned, the same way
 # as the containers before it. The generator's empty `entrypoint` failed the
