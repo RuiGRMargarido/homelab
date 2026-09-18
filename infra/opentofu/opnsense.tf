@@ -17,6 +17,10 @@
 # at the pinned version, so that leaving it out plans no difference. The MAC
 # addresses are left out on purpose, since this repository is public and the
 # provider keeps the existing addresses when none is set.
+#
+# Imported 18/09/2026 with a plan of `1 to import, 0 to change`, so the
+# provider's update never ran and nothing reached the VM. The measurements are
+# in infra/README.md.
 
 # Kept after the import rather than deleted. If the state file is ever lost,
 # the next plan imports this VM again instead of trying to create a second one.
