@@ -38,9 +38,11 @@ defaultRules:
     windows: false
 
 # Sizes below were chosen for a node measured on 18/09/2026 with about 2.7GB
-# available: memory requests add up to roughly 780Mi. Memory is limited so a
-# leak stays inside its own pod; CPU is only requested, never limited, the
-# same convention as the whoami workload.
+# available, and two were raised the same day after measuring the running
+# stack: Grafana had settled at 311Mi against a first limit of 384Mi, and the
+# config reloader had reached 39Mi against 48Mi. Memory requests now add up to
+# roughly 900Mi. Memory is limited so a leak stays inside its own pod; CPU is
+# only requested, never limited, the same convention as the whoami workload.
 prometheusOperator:
   resources:
     requests:
@@ -54,7 +56,7 @@ prometheusOperator:
         cpu: 10m
         memory: 16Mi
       limits:
-        memory: 48Mi
+        memory: 64Mi
 
 prometheus:
   prometheusSpec:
@@ -132,18 +134,21 @@ grafana:
       root_url: "%(protocol)s://%(domain)s/grafana/"
       serve_from_sub_path: true
     # Nothing reports home: the version is pinned by the chart anyway, and
-    # usage statistics have no business leaving the Trusted zone.
+    # usage statistics have no business leaving the Trusted zone. The news feed
+    # on the home page was fetching Grafana's blog, so it goes too.
     analytics:
       reporting_enabled: false
       check_for_updates: false
       check_for_plugin_updates: false
+    news:
+      news_feed_enabled: false
 
   resources:
     requests:
       cpu: 50m
-      memory: 128Mi
+      memory: 256Mi
     limits:
-      memory: 384Mi
+      memory: 512Mi
 
   # The two sidecars that load the dashboards and the data source the chart
   # provides, from ConfigMaps.
