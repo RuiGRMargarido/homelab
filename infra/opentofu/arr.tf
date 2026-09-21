@@ -22,15 +22,20 @@ import {
 }
 
 resource "proxmox_virtual_environment_container" "arr" {
-  node_name     = "pve"
-  vm_id         = 107
-  unprivileged  = true
-  start_on_boot = true
+  node_name    = "pve"
+  vm_id        = 107
+  unprivileged = true
 
   # Stopped since 08/09/2026, and it stays stopped: the VPN credentials still
   # fail, and starting it is a decision, not a side effect of an import. This
   # line cannot be pruned as a default: the provider's default is `true`.
   started = false
+
+  # And it does not come back on its own. Until 21/09/2026 this said `true`,
+  # which contradicted the line above: that day the host was upgraded and
+  # rebooted, Proxmox started the stack because its `onboot` was set, and the
+  # intention to keep it stopped existed only in a document. Now the two agree.
+  start_on_boot = false
 
   delete_unreferenced_disks_on_destroy = false
   purge_on_destroy                     = true
