@@ -106,6 +106,20 @@ Three things the diagram makes visible:
 - **The seam is SSH.** OpenTofu is finished once the VM exists with a user and a key, and Ansible starts from there. When something breaks between steps 4 and 5, the first question is whether the machine answers on port 22, not what either tool did.
 - **The guest agent comes last, on purpose.** The cloud image does not ship it, and with the agent enabled at creation the provider would wait for addresses nobody reports. Ansible installs it first, and only the second `apply` turns it on, at the price of a reboot.
 
+## How Ansible gets into a container
+
+The k3s node was born with the door open: OpenTofu handed cloud-init a user and a key. The six containers predate all of this and came from a template with no SSH server at all, so nothing configured them, and it showed. Measured on 21/09/2026: each of the five running containers was 55 to 65 Debian packages behind, while the node Ansible manages was at zero, because its role upgrades it on every run.
+
+**Decided 21/09/2026: they get the same door as the node.** SSH to the guest itself, as `ansible`, with the key that lives in WSL2. The alternative was to let Ansible into the host and have it run `pct exec` from there, which needs SSH to the hypervisor as root or nearly: that is the door the API token's design closed on purpose, and it fails worse, since one stolen key would reach every guest instead of one, and `pct exec` into LXC 103, the single privileged container, is root on the host by another road.
+
+The door is opened once per container, from the host, with [`ansible/bootstrap-lxc.sh`](ansible/bootstrap-lxc.sh). It installs the SSH server, `sudo` and `python3`, creates the user with no password at all, writes the key, tells sshd to refuse passwords and root, and prints the address to put in the inventory. Every step checks before it acts, so a second run changes nothing.
+
+```bash
+./bootstrap-lxc.sh 101 "ssh-ed25519 AAAA... ansible@homelab"
+```
+
+After that a container is no different from the VM: it enters `inventory/hosts.yml` and the roles do the rest.
+
 ## Prerequisites
 
 Installed 11/09/2026, `kubectl` replaced on 17/09/2026, Helm moved on 18/09/2026. Versions are recorded because a version skew is the most likely cause of something behaving differently later:
