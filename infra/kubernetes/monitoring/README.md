@@ -9,6 +9,7 @@ It is here for history: "why is it slow", "this has been degrading for weeks". *
 | `values.yaml` | Every difference from the chart's defaults, each with its reason |
 | `namespaces.yaml` | The two namespaces, applied before the chart |
 | `scrapeconfig-proxmox-host.yaml` | The Proxmox host as a target, our own object beside the chart |
+| `pve-exporter.yaml` | The exporter that reads the Proxmox API, with its Service and ServiceMonitor |
 
 ## What the chart produces, read before installing
 
@@ -115,4 +116,48 @@ The same program now runs twice, which looks like duplication and is not: each o
 
 **The host's figures include the guests**, because on Proxmox every guest is a process of that same kernel: a container is an ordinary process group, and a VM is a `kvm` process holding the memory the guest has touched. So the host's used memory is the sum of the guests, the services of Proxmox itself and the cache it keeps for them. Measured on 21/09/2026, at the same moment: 12.5GB used on the host, of which 3.2GB was the k3s VM as counted from inside itself. The two never match to the byte, because they are different accountings of the same memory: the host sees what a guest has touched, the guest divides that into used, cached and free.
 
-**What it cannot give is the share of each guest.** The exporter reads `/proc` and `/sys`, which know about processes, not about "VM 102". That comes from the Proxmox API instead, through a `prometheus-pve-exporter`, and it is the figure the open decision about a development VM actually needs: not how much is left, but who is using it.
+**What it cannot give is the share of each guest.** The exporter reads `/proc` and `/sys`, which know about processes, not about "VM 102". That comes from the Proxmox API instead, and is the section below.
+
+### Per guest, from the Proxmox API
+
+`prometheus-pve-exporter` 3.10.0 closes exactly that gap: it asks Proxmox what each guest is doing and reports it labelled by guest, `pve_memory_usage_bytes` and `pve_memory_size_bytes` among others, so "who is using the memory" becomes a query rather than a guess.
+
+It runs in the cluster and not on the host. The hypervisor gains nothing to maintain, the deployment is described in this repository like everything else here, and the only thing created by hand is the credential.
+
+1. **A read-only identity**, on the host. `PVEAuditor` is Proxmox's own read-only role. The role is granted twice on purpose: with privilege separation on, a token may do only what both the token and its user are allowed to do.
+
+   ```bash
+   pveum user add prometheus@pve --comment "Read-only metrics for Prometheus"
+   ```
+
+   ```bash
+   pveum acl modify / --users prometheus@pve --roles PVEAuditor
+   ```
+
+   ```bash
+   pveum user token add prometheus@pve exporter --privsep 1
+   ```
+
+   ```bash
+   pveum acl modify / --tokens 'prometheus@pve!exporter' --roles PVEAuditor
+   ```
+
+   The third command prints the token's value once and never again. It belongs in `SECRETS.md` and in the Secret below, nowhere else.
+
+2. **The Secret**, from WSL2, with that value:
+
+   ```bash
+   kubectl -n monitoring create secret generic pve-exporter --from-literal=PVE_USER='prometheus@pve' --from-literal=PVE_TOKEN_NAME='exporter' --from-literal=PVE_TOKEN_VALUE='<the value printed above>'
+   ```
+
+3. **The exporter**, plan first as always:
+
+   ```bash
+   kubectl diff -f infra/kubernetes/monitoring/pve-exporter.yaml
+   ```
+
+   ```bash
+   kubectl apply -f infra/kubernetes/monitoring/pve-exporter.yaml
+   ```
+
+The address of the host to read is a scrape parameter rather than a setting of the deployment, because the exporter answers for whichever host it is asked about. It is scraped once a minute: the figures are Proxmox's own averages, and each scrape is a round of API calls.

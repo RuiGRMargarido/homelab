@@ -1,0 +1,125 @@
+# prometheus-pve-exporter: the figures Proxmox keeps per guest.
+#
+# The node exporter on the host counts the machine as a whole, because a kernel
+# knows processes, not guests. This one asks the Proxmox API instead, and can
+# answer which guest is using the memory, which is what the open decision about
+# a development VM actually needs.
+#
+# It runs in the cluster rather than on the host: nothing new is installed on
+# the hypervisor, the credential lives in a Secret created by hand, and the
+# whole thing is described in this repository. It reaches the API at the
+# Management address, the same path the host's node exporter is scraped over.
+#
+# The identity is `prometheus@pve`, read-only (`PVEAuditor`), with a token of
+# its own. Creating it, and the Secret this reads, is in README.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pve-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: pve-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pve-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pve-exporter
+    spec:
+      # It talks to Proxmox, never to Kubernetes.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's own unprivileged user, created in its Dockerfile.
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pve-exporter
+          # Pinned by tag and digest: the tag is for the reader, the digest is
+          # what cannot be moved to another image.
+          image: docker.io/prompve/prometheus-pve-exporter:3.10.0@sha256:4867684c0a937716f11f770a32d32958bded507cf570fc334f774392afcb2f37
+          ports:
+            - name: http
+              containerPort: 9221
+          # PVE_USER, PVE_TOKEN_NAME and PVE_TOKEN_VALUE, from a Secret that is
+          # created by hand and never lives here.
+          envFrom:
+            - secretRef:
+                name: pve-exporter
+          env:
+            # The host serves its own certificate, as it does to OpenTofu.
+            - name: PVE_VERIFY_SSL
+              value: "false"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          volumeMounts:
+            # Gunicorn keeps its workers' heartbeat files in /tmp, which a
+            # read-only root filesystem would otherwise refuse.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pve-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: pve-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: pve-exporter
+  ports:
+    - name: http
+      port: 9221
+      targetPort: http
+---
+# The exporter answers for whichever host is asked for, so the address of the
+# one to read is a scrape parameter rather than a setting of the deployment.
+# Every minute is enough: these figures are Proxmox's own averages, and each
+# scrape is a round of API calls.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pve-exporter
+  namespace: monitoring
+  labels:
+    # What makes Prometheus select it: the chart leaves it reading only the
+    # objects labelled with its own release name.
+    release: kps
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pve-exporter
+  endpoints:
+    - port: http
+      path: /pve
+      interval: 60s
+      params:
+        target: ["10.10.30.2"]
+        cluster: ["1"]
+        node: ["1"]
