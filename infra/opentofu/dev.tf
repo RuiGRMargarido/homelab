@@ -119,21 +119,30 @@ resource "proxmox_virtual_environment_vm" "mnt_mate" {
     ssd          = true
   }
 
-  # The installer, and only for the installation. It comes out in a second
-  # apply once Mint is on the disk, together with the boot order below.
+  # The installer drive, empty since 21/09/2026: Mint is on the disk and the ISO
+  # has no further business being mounted.
   #
-  # `plan` prints `enabled = false` inside this block and it means nothing here:
-  # the attribute is deprecated, and the creation path of the provider does not
-  # read it at all. What attaches the drive is this block having an interface
-  # (proxmoxtf/resource/vm/vm.go, v0.113.1, lines 3061 and 3296). Checked in the
-  # source rather than assumed, because the failure would have been a VM with an
-  # empty drive and no way to boot.
+  # `none` rather than deleting this block, and that is not a matter of taste.
+  # With the block gone, the update path falls back to the schema defaults and
+  # would attach a *physical* CD-ROM at ide3 instead, leaving drift it then
+  # re-creates on every apply (proxmoxtf/resource/vm/vm.go, v0.113.1, around line
+  # 6345). Read in the provider's source before writing it, rather than tried on
+  # the machine and explained afterwards.
+  #
+  # `plan` prints `enabled = false` in here and it means nothing: the attribute is
+  # deprecated and neither the create nor the update path reads it. What attaches
+  # a drive is this block having an interface (same file, lines 3061 and 3296).
+  #
+  # To build this machine again from nothing, `file_id` goes back to
+  # `proxmox_download_file.mint_22_3_mate.id` and the boot order back to
+  # `["ide2", "scsi0"]`. That is the whole reason the download above stays
+  # declared: it is the way back to the same starting point.
   cdrom {
-    file_id   = proxmox_download_file.mint_22_3_mate.id
+    file_id   = "none"
     interface = "ide2"
   }
 
-  boot_order = ["ide2", "scsi0"]
+  boot_order = ["scsi0"]
 
   network_device {
     bridge  = "vmbr0"
@@ -148,12 +157,14 @@ resource "proxmox_virtual_environment_vm" "mnt_mate" {
     type = "std"
   }
 
-  # Off for the first boot, exactly as the k3s node was. The Mint ISO does not
-  # install qemu-guest-agent, and with this enabled the provider waits for
-  # addresses nobody is going to give it. Ansible installs the agent, and then
-  # a second apply turns this to true.
+  # Enabled on 21/09/2026, once the Ansible `base` role had installed
+  # qemu-guest-agent, and off until then for the same reason as the k3s node:
+  # the Mint ISO does not ship the agent, and with this true the provider waits
+  # for addresses nobody is going to report. Turning it on adds a virtio serial
+  # device that only appears after a restart, so this apply is done with the
+  # machine stopped and nothing has to be interrupted to do it.
   agent {
-    enabled = false
+    enabled = true
   }
 
   # No `initialization` block: cloud-init is not part of this system, and the

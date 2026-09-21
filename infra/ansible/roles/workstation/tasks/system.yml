@@ -14,6 +14,22 @@
     mode: "0644"
   notify: Apply the keyboard configuration
 
+# The pair is deliberate. Changing /etc/hostname on its own leaves the old name
+# in /etc/hosts, and from then on every `sudo` starts with a complaint that it
+# cannot resolve the host: a cosmetic break that looks like a real one.
+- name: Name the machine what everything else calls it
+  ansible.builtin.hostname:
+    name: "{{ workstation_hostname }}"
+
+- name: Keep /etc/hosts agreeing with the hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1\s'
+    line: "127.0.1.1 {{ workstation_hostname }}"
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Set the time zone
   community.general.timezone:
     name: "{{ workstation_timezone }}"

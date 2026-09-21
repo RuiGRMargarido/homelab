@@ -11,6 +11,11 @@ workstation_user: ""
 # in the installer. The keyboard is the same `es` the VM declares for its
 # console in infra/opentofu/dev.tf.
 workstation_keymap: es
+
+# What the machine calls itself. The Mint installer called it `dev-VM`, while
+# Proxmox and the inventory both call it `mnt-mate`: three names for one machine
+# is two too many, and the one that loses is the one only the installer knows.
+workstation_hostname: mnt-mate
 workstation_timezone: Europe/Lisbon
 workstation_locale: pt_PT.UTF-8
 
@@ -54,6 +59,7 @@ workstation_docker: true
 workstation_java: true
 workstation_docs: true
 workstation_claude_code: true
+workstation_desktop: true
 
 # NoMachine publishes no apt repository, only a .deb per release, so the version
 # is written here and verified against the checksum the vendor publishes beside
@@ -99,6 +105,16 @@ workstation_docs_packages:
   - graphviz
   - pandoc
   - plantuml
+
+# The launchers that land on the desktop, as the paths where the packages
+# themselves keep them: the two from apt under /usr/share/applications, and the
+# two Flatpaks under the directory Flatpak exports to the system. A terminal is
+# in the list because it is what this machine is opened for half the time.
+workstation_desktop_shortcuts:
+  - /usr/share/applications/code.desktop
+  - /usr/share/applications/mate-terminal.desktop
+  - /var/lib/flatpak/exports/share/applications/com.jetbrains.IntelliJ-IDEA-Community.desktop
+  - /var/lib/flatpak/exports/share/applications/md.obsidian.Obsidian.desktop
 
 # One per declared reason: the agent, Python, Java, Docker, pull requests,
 # Markdown, Mermaid preview because half the diagrams in docs/ are Mermaid, and

@@ -1,0 +1,66 @@
+---
+# Launchers on the desktop, for the applications that have a window.
+#
+# The directory is read from the machine rather than assumed to be ~/Desktop. On
+# a system installed in Portuguese it is not: xdg-user-dirs names it in the
+# language of the installation, and a hardcoded ~/Desktop would quietly create a
+# second folder that nobody ever looks at.
+#
+# The files themselves are the ones the packages already ship. Writing our own
+# .desktop entries would mean guessing at icon names and exec lines that the
+# vendor changes between versions, and a launcher that points at nothing is
+# worse than no launcher.
+
+- name: Read the XDG user directories
+  ansible.builtin.slurp:
+    src: "/home/{{ workstation_user }}/.config/user-dirs.dirs"
+  register: workstation_user_dirs
+  failed_when: false
+
+- name: Work out where the desktop is
+  ansible.builtin.set_fact:
+    workstation_desktop_dir: >-
+      {{
+        (workstation_user_dirs['content'] | default('') | b64decode
+         | regex_search('XDG_DESKTOP_DIR="([^"]+)"', '\1') | first
+         | default('$HOME/Desktop', true))
+        | replace('$HOME', '/home/' + workstation_user)
+      }}
+
+- name: Say which directory that turned out to be
+  ansible.builtin.debug:
+    msg: "Shortcuts go to {{ workstation_desktop_dir }}"
+
+- name: Make sure the desktop directory exists
+  ansible.builtin.file:
+    path: "{{ workstation_desktop_dir }}"
+    state: directory
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    mode: "0755"
+
+- name: Put the launchers on the desktop
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ workstation_desktop_dir }}/{{ item | basename }}"
+    remote_src: true
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    # Executable, because a .desktop file without the bit is shown as a text
+    # file rather than as a launcher.
+    mode: "0755"
+  loop: "{{ workstation_desktop_shortcuts }}"
+
+# Caja asks before running a launcher it does not trust. This marks them as
+# trusted so the first double click opens the application instead of a question.
+# Best effort on purpose: the metadata belongs to a desktop session, and this
+# runs over SSH where there may be no session bus to talk to. If it does not
+# take, the cost is one "Trust and Launch" per icon, once.
+- name: Mark the launchers as trusted
+  become: true
+  become_user: "{{ workstation_user }}"
+  ansible.builtin.command:
+    cmd: "gio set {{ workstation_desktop_dir }}/{{ item | basename }} metadata::trusted true"
+  loop: "{{ workstation_desktop_shortcuts }}"
+  changed_when: false
+  failed_when: false

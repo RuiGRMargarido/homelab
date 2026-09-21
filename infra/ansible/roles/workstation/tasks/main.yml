@@ -94,6 +94,11 @@
   when: workstation_claude_code
   tags: claude_code
 
+- name: Launchers on the desktop
+  ansible.builtin.include_tasks: desktop.yml
+  when: workstation_desktop
+  tags: desktop
+
 # Last, because it checks everything above.
 # A template rather than a plain file, so the lists it checks are the same
 # variables the role installs from. A verification that can drift from what it

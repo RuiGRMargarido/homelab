@@ -24,4 +24,4 @@ base_unattended_origins_file: apt-52homelab-mint.conf
 # Fill this in with the name chosen during the installation. The role stops with
 # a message rather than guessing, because guessing here means installing an
 # extension into a home directory that does not exist.
-workstation_user: ""
+workstation_user: rui

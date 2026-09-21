@@ -29,7 +29,6 @@ flowchart TB
         CADDY["Caddy"]:::flat
         KUMA["Uptime Kuma · by design"]:::flat
         ARR["arr stack · stopped"]:::flat
-        MNT["mnt-mate · dev"]:::flat
         PC["Home PC"]:::flat
     end
 
@@ -56,6 +55,7 @@ flowchart TB
         JF["Jellyfin"]:::tru
         TN["TrueNAS · ZFS"]:::tru
         K3S["k3s-1 · VM 109"]:::tru
+        MNT["mnt-mate · dev · VM 110"]:::tru
     end
 
     subgraph MGMT["Management zone"]
@@ -65,6 +65,7 @@ flowchart TB
     PC -. "WireGuard peer" .-> WG
     WG -. "authenticated tunnel" .-> PVEB
     WG -. "Ansible, kubectl" .-> K3S
+    WG -. "Ansible, NoMachine" .-> MNT
 
     classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
     classDef flat fill:#B5651D,stroke:#8A4A15,color:#FFF8F0
@@ -77,7 +78,7 @@ flowchart TB
 | Zones | |
 | ----- | -------------------------------------- |
 | ⬜ | Internet / router / switch |
-| 🟫 | Flat network · VLAN 1 · `192.168.1.0/24` - since 08/09/2026, of the homelab only Caddy, Uptime Kuma and the *arr stack (stopped) |
+| 🟫 | Flat network · VLAN 1 · `192.168.1.0/24` - since 21/09/2026, of the homelab only Caddy, Uptime Kuma and the *arr stack (stopped) |
 | 🟦 | Dedicated firewall (interfaces) |
 | 🟧 | DMZ · VLAN 10 · `10.10.10.0/24` |
 | 🟩 | Trusted · VLAN 20 · `10.10.20.0/24` |
@@ -111,7 +112,7 @@ Checked against the host on 17/09/2026: the bridge, VLAN tag and address of ever
 | Jellyfin | LXC 105 | **Trusted** | `http://10.10.20.87:8096`, or `http://192.168.1.95:8096` from the home network | *(migrated 08/09/2026)* |
 | *arr stack (qBittorrent, Sonarr, Radarr, Prowlarr, Jellyseerr) | LXC 107 | Flat network | `192.168.1.90`, one web interface per application; **stopped since 08/09/2026** | *(never decided - see `CHECKLIST.md` §Open decisions)* |
 | Uptime Kuma | LXC 108 | Flat network | `http://192.168.1.91:3001` | *(stays, by design - see `MONITORING.md`)* |
-| mnt-mate (dev) | VM 100 | Flat network | `192.168.1.212:22` (SSH) | *(undecided - see `CHECKLIST.md` §Open decisions)* |
+| mnt-mate (dev) | VM 110 | **Trusted** | `10.10.20.12:22` (SSH, user `ansible`, key only) and `:4000` (NoMachine). Off unless somebody is using it | *(rebuilt 21/09/2026: VM 100 deleted, VM 110 created by OpenTofu in Trusted)* |
 | VPN clients | - | Tunnel | `10.10.40.2` (phone), `10.10.40.3` (PC). The PC's tunnel is also the administration path into Trusted and Management since 16/09/2026 (Ansible over SSH, `kubectl`) | *(unchanged)* |
 
 ### Ports per service
@@ -162,9 +163,9 @@ Reference for writing the restricted firewall rules that are still missing (see 
 
 | VLAN | Name | Subnet | What lives here (target) | State |
 |---|---|---|---|---|
-| 1 *(native, untagged)* | Home network | 192.168.1.0/24 | The firewall's WAN leg, the home PC and the rest of the household network | Active. Of the homelab, only Caddy (its move deferred by decision), Uptime Kuma (there by design), the *arr stack (stopped, its zone never decided) and the powered-off `mnt-mate` remain, since 08/09/2026 |
+| 1 *(native, untagged)* | Home network | 192.168.1.0/24 | The firewall's WAN leg, the home PC and the rest of the household network | Active. Of the homelab, only Caddy (its move deferred by decision), Uptime Kuma (there by design) and the *arr stack (stopped, its zone never decided) remain. `mnt-mate` left on 21/09/2026, when it was deleted and rebuilt in Trusted |
 | 10 | DMZ | 10.10.10.0/24 | WireGuard (the internet-facing leg). Caddy only moves here once there is a decided app for public exposure | **Active and populated** (WireGuard) |
-| 20 | Trusted | 10.10.20.0/24 | TrueNAS `10.10.20.10`, k3s-1 `10.10.20.11`, Nextcloud `10.10.20.84`, Jellyfin `10.10.20.87`, and later the k3s workloads | **Active and populated** (TrueNAS 11/08/2026, Jellyfin and Nextcloud 08/09/2026, k3s-1 16/09/2026) |
+| 20 | Trusted | 10.10.20.0/24 | TrueNAS `10.10.20.10`, k3s-1 `10.10.20.11`, mnt-mate `10.10.20.12`, Nextcloud `10.10.20.84`, Jellyfin `10.10.20.87`, and later the k3s workloads | **Active and populated** (TrueNAS 11/08/2026, Jellyfin and Nextcloud 08/09/2026, k3s-1 16/09/2026, mnt-mate 21/09/2026) |
 | 30 | Management | 10.10.30.0/24 | Proxmox UI/API, switch management, SSH to the nodes | **Active** (Proxmox); the switch is still on the flat network |
 | - | WireGuard tunnel | 10.10.40.0/24 | **Not a switch VLAN** - a virtual subnet living only inside the WireGuard container, handed to already-authenticated clients | Active (2 peers) |
 
@@ -484,3 +485,4 @@ General Wi-Fi, the guest network and any eventual IoT isolation stay **outside**
 - 17/09/2026: the k3s API answers on `10.10.20.11:6443`, and `kubectl` on the PC reaches it through the WireGuard tunnel, the same path SSH already used, with no new firewall rule. The k3s-1 row no longer describes it as future.
 - 17/09/2026: **documentation review after Phase 4 reached a running k3s node, and four diagrams were describing an earlier month.** The current-state diagram gained k3s-1 in Trusted and the tunnel from the home PC that administers it. The matrix diagram still drew Nextcloud and Jellyfin on the flat network, and the flat network with no way into Trusted, while four redirects have carried the household there since 08/09; the rule table listed two of those four. Flow 1 still ended at Jellyfin's old flat address, around the firewall rather than through it. Added Flow 4, the administration path through the tunnel, with the failures already met on it, and the ports of k3s-1, including 80 and 443, which answer before anything is deployed because k3s ships Traefik by default. The pending WAN-side rule for the PC is closed by the decision of 16/09. And both SVGs were redrawn: the physical topology still showed the powerline carrying the uplink, a week after the direct cable of 10/09, and the target state did not know k3s-1 existed.
 - 17/09/2026: **the inventory checked against the host, and it had never listed two guests.** `pct config` and `qm config` for every guest, bridge, VLAN tag and address, confirmed every row that existed and found two that did not: LXC 108, the monitor, and LXC 107, the *arr stack, which has lived on the flat network at `192.168.1.90` since it was created on 12/08. Several places in this document, the legend and the matrix diagram among them, described the flat network as holding only Caddy and Uptime Kuma. The stack is stopped, so the omission exposed nothing, but its zone was never decided either, which is now an open decision in `CHECKLIST.md`.
+- 21/09/2026: **the development VM came back, and came back in Trusted.** VM 100 `mnt-mate` had sat on the flat network at `192.168.1.212`, powered off since August and promised to a machine that does not exist yet. It was deleted, and VM 110 was created by OpenTofu at `10.10.20.12`, in the zone the decision of 24/08 had closed as no longer applicable. What that changes here: the flat network loses its last VM and now holds only Caddy, Uptime Kuma and the stopped *arr stack; Trusted gains a fifth address; and the machine is reached from the PC the same way as everything else there, through the WireGuard tunnel, with SSH on `:22` for Ansible and NoMachine on `:4000` for the desktop. No firewall rule was added for either: the tunnel already reaches the zone, which is the same thing that made the k3s API work in September without a new rule.
