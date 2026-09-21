@@ -1,0 +1,30 @@
+# The Proxmox host, scraped from inside the cluster.
+#
+# Everything else Prometheus scrapes is discovered inside Kubernetes. The host
+# is not in Kubernetes and never will be, so it is declared as a `ScrapeConfig`,
+# the operator's own way of adding a target at a fixed address. Our own object,
+# applied with kubectl, beside a chart installed with Helm.
+#
+# `jobName` is deliberately the same as the cluster node's exporter: the
+# node-exporter dashboards that come with the chart then list the host beside
+# the k3s node in their instance selector, instead of needing dashboards of
+# their own.
+#
+# The `release: kps` label is what makes Prometheus pick this up: the chart
+# leaves it selecting only the objects labelled with its own release name.
+#
+# The address is the host's Management interface, and no firewall rule was
+# needed: rule 5 in docs/NETWORK.md already lets the Trusted zone open
+# connections anywhere, which is how TrueNAS reaches its updates.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: proxmox-host
+  namespace: monitoring
+  labels:
+    release: kps
+spec:
+  jobName: node-exporter
+  staticConfigs:
+    - targets:
+        - 10.10.30.2:9100

@@ -8,6 +8,7 @@ It is here for history: "why is it slow", "this has been degrading for weeks". *
 |---|---|
 | `values.yaml` | Every difference from the chart's defaults, each with its reason |
 | `namespaces.yaml` | The two namespaces, applied before the chart |
+| `scrapeconfig-proxmox-host.yaml` | The Proxmox host as a target, our own object beside the chart |
 
 ## What the chart produces, read before installing
 
@@ -72,3 +73,24 @@ Right after the first install this comparison must print nothing, which is how t
 - **Memory a few minutes after the install**: Grafana 456Mi across its three containers, Prometheus 390Mi, kube-state-metrics 29Mi, the operator 29Mi and node-exporter 12Mi, about 920Mi in all. The node went from 1353Mi, 34% of its memory, to 2658Mi, 67%.
 - **Per container, ten minutes in**: Grafana 311Mi against its limit of 384Mi, and each of its sidecars about 73Mi; Prometheus 380Mi against 1Gi; the config reloader beside it 39Mi against 48Mi; the operator 30Mi and kube-state-metrics 23Mi. Two of those were too close to their limit for a process whose peaks had not been seen yet, so Grafana went to 512Mi, with its request raised to 256Mi to match what it actually uses, and the config reloader to 64Mi. The chart sets Grafana's Go memory limit to 90% of the container's, so it followed on its own, from 345MiB to 460MiB. It was the first change after the install, and so the first real use of the plan: the comparison showed exactly the six differences previewed locally before the commit, and nothing else. The upgrade, revision 2, restarted Grafana and the operator, and the operator then restarted Prometheus once to give its reloader the new limit, as expected; the comparison printed nothing afterwards.
 - **The chart's own notes do not apply here.** They point at a `kps-grafana` Secret for the admin password, which is not created when the credentials come from an existing Secret: the only Secret the chart renders is Prometheus's service account token.
+
+## The Proxmox host
+
+Everything above watches the cluster and the VM it runs in. The hypervisor underneath is a different machine, and the one whose memory decides what else can ever run here, so it is scraped too, from 21/09/2026.
+
+- **On the host**, Debian's `prometheus-node-exporter` package, bound to the Management address alone, `10.10.30.2:9100`, so it is not also answering on the flat network. It is installed by hand: the host is not in Ansible's inventory, which holds guests, and putting it there is a decision of its own about credentials.
+- **No firewall rule was needed.** Rule 5 in [NETWORK.md](../../../docs/NETWORK.md#rules-between-zones) already lets the Trusted zone open connections anywhere, which is how TrueNAS reaches its updates; the k3s node uses the same path to reach Management.
+- **The target is a `ScrapeConfig`**, since the host is not discoverable inside Kubernetes, and it carries the same job name as the cluster's node-exporter, so the chart's dashboards list the host beside the k3s node instead of needing their own.
+- **What it does not cover**: per guest figures, which come from the Proxmox API rather than the host's kernel. A `prometheus-pve-exporter` would add them, and is a step of its own.
+
+Applied with the plan first, as everything else here:
+
+```bash
+kubectl diff -f infra/kubernetes/monitoring/scrapeconfig-proxmox-host.yaml
+```
+
+```bash
+kubectl apply -f infra/kubernetes/monitoring/scrapeconfig-proxmox-host.yaml
+```
+
+`kubectl diff` exits `1` when it finds differences, which is what a new object is, so the first run is expected to end in `1` and print the object it would create.
