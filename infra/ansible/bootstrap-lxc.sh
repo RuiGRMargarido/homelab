@@ -33,10 +33,28 @@ if [ -z "$VMID" ] || [ -z "$PUBKEY" ]; then
     exit 2
 fi
 
-case "$PUBKEY" in
-    ssh-*) ;;
-    *) echo "the second argument does not look like an SSH public key" >&2; exit 2 ;;
+# Checked in three parts rather than by its prefix alone. On 21/09/2026 the
+# example key from the documentation was pasted by mistake into three
+# containers: it starts with `ssh-`, so a prefix check let it through, it was
+# written to `authorized_keys`, and those three refused every login afterwards
+# with "Permission denied (publickey)".
+keytype=${PUBKEY%% *}
+keybody=${PUBKEY#* }
+keybody=${keybody%% *}
+
+case "$keytype" in
+    ssh-ed25519 | ssh-rsa | ecdsa-sha2-*) ;;
+    *) echo "not an SSH public key type: '$keytype'" >&2; exit 2 ;;
 esac
+
+case "$keybody" in
+    *[!A-Za-z0-9+/=]*) echo "the key itself is not base64: did you paste the example instead of your key?" >&2; exit 2 ;;
+esac
+
+if [ "${#keybody}" -lt 60 ]; then
+    echo "the key itself is only ${#keybody} characters: did you paste the example instead of your key?" >&2
+    exit 2
+fi
 
 if [ "$(pct status "$VMID")" != "status: running" ]; then
     echo "container $VMID is not running" >&2
