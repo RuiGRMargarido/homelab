@@ -102,3 +102,17 @@ kubectl apply -f infra/kubernetes/monitoring/scrapeconfig-proxmox-host.yaml
 - The target came up under the same job as the cluster's exporter, which now has two instances: the node and the host.
 - The package pulls in `prometheus-node-exporter-collectors`, a set of timers that write extra metrics into files the exporter reads. Two are worth having on this machine, the count of pending `apt` updates and the disks' SMART data; the ones for IPMI and Mellanox cards find no such hardware and simply produce nothing.
 - **The CI had to learn the operator's kinds.** `ScrapeConfig` has no built-in schema, so the manifests job failed for lack of one until it was given the same community CRD catalog the Helm job already used.
+
+### Two exporters, two kernels
+
+The same program now runs twice, which looks like duplication and is not: each one can only count what runs inside its own kernel.
+
+| | In the k3s node | On the Proxmox host |
+|---|---|---|
+| How it runs | A pod, in `monitoring-node` | A systemd service, from `apt` |
+| Who installs it | The chart, through Helm | By hand, since the host is not part of the cluster |
+| What it measures | VM 109 alone: its 3.9GB, its 32GB virtual disk, its one interface | The physical machine: 24GB, the NVMe and the USB disk, the real cards, the bridges and the VLANs |
+
+**The host's figures include the guests**, because on Proxmox every guest is a process of that same kernel: a container is an ordinary process group, and a VM is a `kvm` process holding the memory the guest has touched. So the host's used memory is the sum of the guests, the services of Proxmox itself and the cache it keeps for them. Measured on 21/09/2026, at the same moment: 12.5GB used on the host, of which 3.2GB was the k3s VM as counted from inside itself. The two never match to the byte, because they are different accountings of the same memory: the host sees what a guest has touched, the guest divides that into used, cached and free.
+
+**What it cannot give is the share of each guest.** The exporter reads `/proc` and `/sys`, which know about processes, not about "VM 102". That comes from the Proxmox API instead, through a `prometheus-pve-exporter`, and it is the figure the open decision about a development VM actually needs: not how much is left, but who is using it.
