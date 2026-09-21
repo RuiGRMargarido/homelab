@@ -120,6 +120,8 @@ The door is opened once per container, from the host, with [`ansible/bootstrap-l
 
 After that a container is no different from the VM: it enters `inventory/hosts.yml` and the roles do the rest.
 
+**Done for all five on 21/09/2026**, one at a time and Caddy first, each second run reporting `changed=0`, and every container now at zero packages pending. Two habits came out of it. The containers are taken with `--limit`, one by one, because the role's first task upgrades everything `apt` knows, which on these guests includes Docker and therefore restarts what is running inside; what runs unattended afterwards is only Debian, which is the point of writing the origins out. And the guest that carries the tunnel, LXC 103, is the one to do last, since Ansible reaches it through the very tunnel it serves.
+
 ## Prerequisites
 
 Installed 11/09/2026, `kubectl` replaced on 17/09/2026, Helm moved on 18/09/2026. Versions are recorded because a version skew is the most likely cause of something behaving differently later:
