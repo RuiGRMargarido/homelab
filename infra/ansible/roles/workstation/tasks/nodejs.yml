@@ -1,0 +1,25 @@
+---
+# Node from NodeSource, because the `nodejs` in Ubuntu 24.04, and therefore in
+# Mint 22.3, is the 18: out of support, and below what the agent tooling expects.
+#
+# `nodistro` is not a mistake and not a placeholder: NodeSource publishes one
+# suite for every distribution rather than one per codename, which is why this is
+# the one repository here that does not want the Ubuntu codename.
+
+- name: NodeSource repository
+  ansible.builtin.deb822_repository:
+    name: nodesource
+    types: [deb]
+    uris: "https://deb.nodesource.com/node_{{ workstation_nodejs_major }}.x"
+    suites: [nodistro]
+    components: [main]
+    architectures: [amd64]
+    signed_by: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    state: present
+    enabled: true
+
+- name: Install Node.js
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+    update_cache: true

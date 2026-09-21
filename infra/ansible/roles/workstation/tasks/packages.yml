@@ -1,0 +1,14 @@
+---
+# The floor. Everything here comes from the repositories Mint already trusts, so
+# it is also covered by the unattended-upgrades policy the base role installs.
+#
+# `acl` earns its place for a reason that is invisible until it bites: this play
+# runs as root, and becoming the person's user to install their editor
+# extensions needs it, or Ansible fails on the permissions of its own temporary
+# files.
+- name: Install the base packages
+  ansible.builtin.apt:
+    name: "{{ workstation_base_packages + ['acl'] }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600

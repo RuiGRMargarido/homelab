@@ -1,0 +1,119 @@
+#!/bin/bash
+# What this machine is supposed to have, asked one item at a time.
+#
+# Written by Ansible from roles/workstation/templates/dev-smoke.sh.j2, so the
+# lists below are the same ones the role installs from: one source of truth, and
+# no chance of a check that quietly disagrees with the role.
+#
+# Run as the person, not as root, because two of the checks are about what the
+# person can do: Docker without sudo, and the editor extensions in their profile.
+#
+#   dev-smoke
+#
+# Exits non-zero if anything is missing, so it can go in a cron or a pipeline the
+# day that is wanted.
+set -uo pipefail
+
+missing=0
+
+ok() { printf '  ok      %-18s %s\n' "$1" "${2:-}"; }
+no() { printf '  MISSING %-18s %s\n' "$1" "${2:-}"; missing=$((missing + 1)); }
+
+if [ "$(id -u)" -eq 0 ]; then
+    echo "run me as the person who uses this machine, not as root" >&2
+    exit 2
+fi
+
+echo "binaries"
+version_of() {
+    case "$1" in
+        java) java -version 2>&1 | head -1 ;;
+        mvn) mvn -v 2>/dev/null | head -1 ;;
+        *) "$1" --version 2>/dev/null | head -1 ;;
+    esac
+}
+
+for binary in git gh node npm java mvn pandoc plantuml docker code claude; do
+    if command -v "$binary" >/dev/null 2>&1; then
+        ok "$binary" "$(version_of "$binary")"
+    else
+        no "$binary"
+    fi
+done
+
+echo "docker, as this user and without sudo"
+if id -nG "$USER" | tr ' ' '\n' | grep -qx docker; then
+    ok "docker group" "$USER is in it"
+else
+    no "docker group" "$USER is not in it: log out and back in, or check the role"
+fi
+if docker run --rm hello-world >/dev/null 2>&1; then
+    ok "docker run" "hello-world"
+else
+    no "docker run" "hello-world failed"
+fi
+
+echo "editor extensions"
+installed_extensions=$(code --list-extensions 2>/dev/null | tr 'A-Z' 'a-z')
+{% for extension in workstation_vscode_extensions %}
+if printf '%s\n' "$installed_extensions" | grep -qx "$(printf '%s' '{{ extension }}' | tr 'A-Z' 'a-z')"; then
+    ok "extension" "{{ extension }}"
+else
+    no "extension" "{{ extension }}"
+fi
+{% endfor %}
+
+echo "flatpak applications"
+installed_flatpaks=$(flatpak list --app --columns=application 2>/dev/null)
+{% for app in workstation_flatpak_apps_docs + workstation_flatpak_apps_intellij %}
+if printf '%s\n' "$installed_flatpaks" | grep -qx '{{ app }}'; then
+    ok "flatpak" "{{ app }}"
+else
+    no "flatpak" "{{ app }}"
+fi
+{% endfor %}
+
+echo "remote desktop"
+if systemctl is-active --quiet nxserver; then
+    ok "nxserver" "active, NoMachine listens on 4000/TCP"
+else
+    no "nxserver" "not active"
+fi
+
+echo "diagrams"
+if plantuml -testdot 2>&1 | grep -q "seems OK"; then
+    ok "plantuml dot" "graphviz answers"
+else
+    no "plantuml dot" "graphviz is missing or broken: every diagram except sequence ones fails"
+fi
+
+echo "system settings"
+layout=$(awk -F'"' '/^XKBLAYOUT=/ { print $2 }' /etc/default/keyboard)
+if [ "$layout" = "{{ workstation_keymap }}" ]; then
+    ok "keyboard" "$layout"
+else
+    no "keyboard" "$layout, expected {{ workstation_keymap }}"
+fi
+
+zone=$(timedatectl show -p Timezone --value 2>/dev/null)
+if [ "$zone" = "{{ workstation_timezone }}" ]; then
+    ok "timezone" "$zone"
+else
+    no "timezone" "$zone, expected {{ workstation_timezone }}"
+fi
+
+echo "packages"
+pending=$(apt-get -s upgrade 2>/dev/null | grep -c '^Inst')
+if [ "$pending" -eq 0 ]; then
+    ok "pending updates" "none"
+else
+    no "pending updates" "$pending waiting"
+fi
+
+echo
+if [ "$missing" -eq 0 ]; then
+    echo "all checks passed"
+else
+    echo "$missing check(s) failed"
+fi
+exit $(( missing > 0 ? 1 : 0 ))

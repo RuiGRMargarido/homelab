@@ -1,0 +1,27 @@
+---
+# IntelliJ IDEA Community from Flathub, for the same reason as Obsidian: a signed
+# repository with updates of its own, instead of a tarball pinned by hand in a
+# directory that nobody revisits. Mint ships Flatpak and Flathub already, and
+# disables snapd, so this is the road that is already built.
+#
+# Two editors and not one, on purpose: VS Code for loose files, Markdown, YAML,
+# HCL and the agents, IntelliJ for Java, where an IDE that compiles while you
+# type earns its disk. They cost about 1.5 GB together and compete for nothing.
+#
+# The IntelliJ plugins, including the PlantUML one, are installed from inside the
+# IDE. They live in the profile and there is no decent way to put them there from
+# here, so it is written down rather than left looking like an omission.
+
+- name: Flathub remote
+  community.general.flatpak_remote:
+    name: flathub
+    flatpakrepo_url: https://dl.flathub.org/repo/flathub.flatpakrepo
+    method: system
+    state: present
+
+- name: Install IntelliJ IDEA Community
+  community.general.flatpak:
+    name: "{{ item }}"
+    method: system
+    state: present
+  loop: "{{ workstation_flatpak_apps_intellij }}"

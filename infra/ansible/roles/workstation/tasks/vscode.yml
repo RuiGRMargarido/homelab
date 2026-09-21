@@ -1,0 +1,38 @@
+---
+# VS Code from the Microsoft repository, written as a deb822 source with its key
+# in /etc/apt/keyrings. Not `apt-key`, which is deprecated and adds a key that
+# every repository on the machine is then trusted to use.
+#
+# The suite here is `stable`, which is Microsoft's own name for it and has
+# nothing to do with the Ubuntu codename the other three repositories need.
+
+- name: Microsoft repository for VS Code
+  ansible.builtin.deb822_repository:
+    name: vscode
+    types: [deb]
+    uris: https://packages.microsoft.com/repos/code
+    suites: [stable]
+    components: [main]
+    architectures: [amd64]
+    signed_by: https://packages.microsoft.com/keys/microsoft.asc
+    state: present
+    enabled: true
+
+- name: Install VS Code
+  ansible.builtin.apt:
+    name: code
+    state: present
+    update_cache: true
+
+# As the person, not as root: an extension lives in the profile of whoever uses
+# it, and one installed for root is one nobody sees. `--force` is what makes this
+# quiet and repeatable; an extension already there prints that it is, and the
+# task reports no change.
+- name: Install the VS Code extensions
+  become: true
+  become_user: "{{ workstation_user }}"
+  ansible.builtin.command:
+    cmd: "code --install-extension {{ item }} --force"
+  register: workstation_vscode_extension
+  changed_when: "'successfully installed' in workstation_vscode_extension.stdout"
+  loop: "{{ workstation_vscode_extensions }}"

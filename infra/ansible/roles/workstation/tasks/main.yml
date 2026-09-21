@@ -1,0 +1,108 @@
+---
+# The development machine, block by block. Each include carries a tag of its own
+# name, so adding one later is `--tags docker` and three minutes rather than a
+# full run.
+#
+# Order matters twice: the system settings and the base packages come first
+# because `acl` is in them and Ansible needs it to become the person's user for
+# the editor extensions, and the third-party repositories come before anything
+# that installs from them.
+
+- name: Refuse to run without knowing whose machine this is
+  ansible.builtin.assert:
+    that:
+      - workstation_user | length > 0
+    fail_msg: >-
+      workstation_user is empty. Set it in inventory/group_vars/dev.yml to the account
+      created by the Mint installer: the desktop, the docker group and the editor
+      extensions all belong to a person, and guessing the name means installing
+      them into a home directory that does not exist.
+
+- name: Read /etc/os-release
+  ansible.builtin.slurp:
+    src: /etc/os-release
+  register: workstation_os_release
+
+# Mint reports its own name in every codename fact: `zena` for 22.3. The
+# third-party repositories publish for Ubuntu, so what they need is the
+# UBUNTU_CODENAME that Mint keeps in the same file, `noble`. Read from the
+# machine rather than written here, so that the day this is upgraded the value
+# follows the system instead of a constant somebody forgot.
+- name: Take the Ubuntu codename Mint is built on
+  ansible.builtin.set_fact:
+    workstation_codename: >-
+      {{
+        workstation_ubuntu_codename if workstation_ubuntu_codename | length > 0
+        else (workstation_os_release['content'] | b64decode
+              | regex_search('UBUNTU_CODENAME=(.+)', '\1') | first | trim)
+      }}
+
+- name: Show which codename the repositories will use
+  ansible.builtin.debug:
+    msg: "Third-party repositories will use suite '{{ workstation_codename }}'"
+
+- name: Settings that would otherwise exist only because someone clicked them
+  ansible.builtin.include_tasks: system.yml
+  tags: system
+
+- name: The floor of a working environment
+  ansible.builtin.include_tasks: packages.yml
+  tags: packages
+
+- name: Remote desktop, NoMachine
+  ansible.builtin.include_tasks: nomachine.yml
+  when: workstation_nomachine
+  tags: nomachine
+
+- name: Editor, VS Code
+  ansible.builtin.include_tasks: vscode.yml
+  when: workstation_vscode
+  tags: vscode
+
+- name: Editor, IntelliJ IDEA Community
+  ansible.builtin.include_tasks: intellij.yml
+  when: workstation_intellij
+  tags: intellij
+
+- name: Git and GitHub
+  ansible.builtin.include_tasks: github.yml
+  when: workstation_github
+  tags: github
+
+- name: Node.js LTS
+  ansible.builtin.include_tasks: nodejs.yml
+  when: workstation_nodejs
+  tags: nodejs
+
+- name: Docker
+  ansible.builtin.include_tasks: docker.yml
+  when: workstation_docker
+  tags: docker
+
+- name: Java
+  ansible.builtin.include_tasks: java.yml
+  when: workstation_java
+  tags: java
+
+- name: Documentation, Markdown and diagrams
+  ansible.builtin.include_tasks: docs.yml
+  when: workstation_docs
+  tags: docs
+
+- name: Claude Code
+  ansible.builtin.include_tasks: claude_code.yml
+  when: workstation_claude_code
+  tags: claude_code
+
+# Last, because it checks everything above.
+# A template rather than a plain file, so the lists it checks are the same
+# variables the role installs from. A verification that can drift from what it
+# verifies is worse than none: it passes for the wrong reason.
+- name: The smoke test
+  ansible.builtin.template:
+    src: dev-smoke.sh.j2
+    dest: /usr/local/bin/dev-smoke
+    owner: root
+    group: root
+    mode: "0755"
+  tags: smoke

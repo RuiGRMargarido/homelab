@@ -9,3 +9,9 @@ base_guest_agent: true
 # reboot to pick up, and one of them carries the tunnel this very connection
 # runs through.
 base_reboot_when_required: true
+
+# Which set of origins unattended-upgrades may apply, as a file name under
+# files/. Debian by default: five of the seven guests are Debian containers and
+# the k3s node is a Debian VM. The development machine is Mint, whose packages
+# come from Ubuntu, and it overrides this in its group_vars.
+base_unattended_origins_file: apt-52homelab.conf

@@ -1,0 +1,18 @@
+---
+# OpenJDK 21, the LTS that Ubuntu 24.04 carries, and Maven. No third-party
+# repository and no version pinned by us: the distribution maintains both, so
+# they are also covered by the unattended-upgrades policy, unlike Docker, Node
+# and VS Code.
+#
+# Gradle is deliberately absent. Projects carry their own `gradlew`, and the
+# wrapper uses the version the project wants rather than the one the machine
+# happens to have, which is the problem a system-wide Gradle creates. The day a
+# project needs it, it is one line here.
+#
+# The JDK also serves PlantUML in tasks/docs.yml, which is a Java program.
+- name: Install the JDK and Maven
+  ansible.builtin.apt:
+    name: "{{ workstation_java_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600

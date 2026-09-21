@@ -1,0 +1,12 @@
+---
+# `state: present`, not `latest`, and that is the whole design of this task: it
+# installs the CLI if it is missing and otherwise does nothing. Claude Code keeps
+# itself updated, so a task here that chased the newest version would report a
+# change on every single run and fight the tool over who decides the version.
+#
+# Needs Node, which is tasks/nodejs.yml and runs before this one.
+- name: Install the Claude Code CLI
+  community.general.npm:
+    name: "@anthropic-ai/claude-code"
+    global: true
+    state: present

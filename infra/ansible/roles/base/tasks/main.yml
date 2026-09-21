@@ -28,7 +28,7 @@
 
 - name: Write which updates may be applied unattended
   ansible.builtin.copy:
-    src: apt-52homelab.conf
+    src: "{{ base_unattended_origins_file }}"
     dest: /etc/apt/apt.conf.d/52homelab
     owner: root
     group: root

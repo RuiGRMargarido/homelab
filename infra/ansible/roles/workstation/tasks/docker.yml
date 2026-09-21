@@ -1,0 +1,49 @@
+---
+# Docker CE from Docker's own repository, which is what lets an image be proved
+# here before it goes anywhere near the k3s node, and a local model run in a
+# container instead of from an installer pasted off a website.
+#
+# The suite is the Ubuntu codename read from the machine, `noble`, and not the
+# `zena` that Mint answers with. Getting this wrong produces a repository that
+# resolves to nothing and an error that blames apt.
+#
+# Docker Desktop is deliberately not here: inside a VM it wants nested
+# virtualisation to do what these packages already do without any of it.
+
+- name: Docker repository
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: [deb]
+    uris: https://download.docker.com/linux/ubuntu
+    suites: ["{{ workstation_codename }}"]
+    components: [stable]
+    architectures: [amd64]
+    signed_by: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+    enabled: true
+
+- name: Install Docker Engine and its plugins
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: Start Docker and leave it started
+  ansible.builtin.systemd_service:
+    name: docker
+    state: started
+    enabled: true
+
+# `append: true`, so this adds the group and never rewrites the list of groups
+# the installer gave this account. Takes effect at the next login, which is worth
+# knowing before concluding that it did not work.
+- name: Let the person use Docker without sudo
+  ansible.builtin.user:
+    name: "{{ workstation_user }}"
+    groups: docker
+    append: true

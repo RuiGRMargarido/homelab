@@ -1,0 +1,8 @@
+---
+# `setupcon --save` writes the console keymap from /etc/default/keyboard. X11
+# reads that same file when a session starts, so there is nothing to restart for
+# the desktop: the next login has the layout.
+- name: Apply the keyboard configuration
+  ansible.builtin.command:
+    cmd: setupcon --save
+  changed_when: true

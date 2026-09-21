@@ -1,0 +1,114 @@
+---
+# Everything this role installs, and the switch for each block. Turning one off
+# is a line in inventory/group_vars/dev.yml, not an edit to the tasks.
+
+# The account created by the Mint installer. Required: the role stops with a
+# message if it is empty, because a desktop package installed for nobody in
+# particular is the kind of success that is discovered months later.
+workstation_user: ""
+
+# System settings that would otherwise exist only because somebody clicked them
+# in the installer. The keyboard is the same `es` the VM declares for its
+# console in infra/opentofu/dev.tf.
+workstation_keymap: es
+workstation_timezone: Europe/Lisbon
+workstation_locale: pt_PT.UTF-8
+
+# The floor: without these the machine is not a working environment. No switch,
+# on purpose.
+workstation_base_packages:
+  - build-essential
+  - ca-certificates
+  # Both of these are already on a Mint desktop, and they are written down
+  # because the role depends on them rather than hopes for them: the keyboard
+  # task edits the file the first one owns, and calls the `setupcon` the second
+  # one provides.
+  - console-setup
+  - keyboard-configuration
+  - curl
+  # Mint ships Flatpak with Flathub configured, and disables snapd. Obsidian and
+  # IntelliJ come that way, so the requirement is stated instead of assumed.
+  - flatpak
+  - htop
+  - jq
+  - ncdu
+  - openssh-server
+  - pipx
+  - python3-dev
+  - python3-venv
+  - ripgrep
+  - rsync
+  - tmux
+  - tree
+  - unzip
+  - wget
+
+# The blocks. Each one is independent and carries a tag of the same name, so a
+# later addition is `--tags docker` and three minutes rather than a full run.
+workstation_nomachine: true
+workstation_vscode: true
+workstation_intellij: true
+workstation_github: true
+workstation_nodejs: true
+workstation_docker: true
+workstation_java: true
+workstation_docs: true
+workstation_claude_code: true
+
+# NoMachine publishes no apt repository, only a .deb per release, so the version
+# is written here and verified against the checksum the vendor publishes beside
+# it. That checksum is an MD5 because MD5 is what they publish: weak, and still
+# better than the alternative, which is pinning a hash we calculated ourselves
+# and which therefore proves only that the file has not changed since we saw it.
+# The download is over HTTPS from their own host.
+#
+# Personal Edition: free for personal use, one connection at a time, which is
+# exactly this case. Updating is this version and this checksum, read from
+# https://download.nomachine.com/download/?id=43&platform=linux
+workstation_nomachine_version: 10.1.7_1
+workstation_nomachine_url: "https://download.nomachine.com/download/10.1/Linux/nomachine-personal-edition_10.1.7_1_amd64.deb"
+workstation_nomachine_checksum: "md5:b97cc14512e7cc7cb93ce2bbe465a2de"
+
+# The Ubuntu codename these third-party repositories want. Mint reports `zena`
+# in ${distro_codename} and its packages come from `noble`, so this is read from
+# UBUNTU_CODENAME in /etc/os-release on the machine instead of being written
+# here as a constant. See tasks/main.yml.
+workstation_ubuntu_codename: ""
+
+# Node 22 is the current LTS. The 18 that Ubuntu 24.04 carries is out of
+# support, and the agent tooling assumes a current LTS.
+workstation_nodejs_major: 22
+
+workstation_java_packages:
+  - openjdk-21-jdk
+  - maven
+
+# Obsidian and IntelliJ come from Flathub rather than as downloaded files: a
+# signed repository with updates of its own, instead of a .deb pinned by hand
+# that nobody remembers to replace. Mint ships Flatpak and Flathub already
+# configured, and disables snapd, so this is the way in that is already there.
+workstation_flatpak_apps_docs:
+  - md.obsidian.Obsidian
+workstation_flatpak_apps_intellij:
+  - com.jetbrains.IntelliJ-IDEA-Community
+
+# Markdown, diagrams and the conversions a document needs to leave here.
+# graphviz is not optional: without it PlantUML draws sequence diagrams and
+# fails on everything else, which is exactly where a first attempt lands.
+workstation_docs_packages:
+  - graphviz
+  - pandoc
+  - plantuml
+
+# One per declared reason: the agent, Python, Java, Docker, pull requests,
+# Markdown, Mermaid preview because half the diagrams in docs/ are Mermaid, and
+# PlantUML for the other half.
+workstation_vscode_extensions:
+  - anthropic.claude-code
+  - ms-python.python
+  - vscjava.vscode-java-pack
+  - ms-azuretools.vscode-docker
+  - github.vscode-pull-request-github
+  - yzhang.markdown-all-in-one
+  - bierner.markdown-mermaid
+  - jebbs.plantuml

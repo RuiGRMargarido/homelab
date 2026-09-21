@@ -1,0 +1,41 @@
+---
+# The documentation of this project is an Obsidian vault: `.obsidian/` is in the
+# repository. Cloning it here and opening it gives the same workspace as on the
+# PC, which is what the Obsidian items of Phase 6 are going to want.
+#
+# Obsidian comes from Flathub rather than as the .deb from GitHub. The difference
+# is not taste: Flathub is a signed repository that updates itself, while the .deb
+# would be a file pinned by hand with no checksum published beside it, waiting for
+# somebody to remember it.
+#
+# graphviz is not optional. Without it PlantUML draws sequence diagrams and fails
+# on every other kind, which is exactly where a first attempt lands. The
+# command-line `plantuml`, and not only the VS Code extension, is what allows a
+# .puml to be rendered from a script or one day in CI.
+#
+# A warning worth keeping here rather than in a wiki nobody opens: the Obsidian
+# PlantUML community plugin renders against the public plantuml.com server by
+# default, which means sending the diagram source out of the house. The diagrams
+# here are the network topology. If that plugin is ever used, point it at a local
+# renderer first.
+
+- name: Install the documentation and diagram tools
+  ansible.builtin.apt:
+    name: "{{ workstation_docs_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Flathub remote
+  community.general.flatpak_remote:
+    name: flathub
+    flatpakrepo_url: https://dl.flathub.org/repo/flathub.flatpakrepo
+    method: system
+    state: present
+
+- name: Install Obsidian
+  community.general.flatpak:
+    name: "{{ item }}"
+    method: system
+    state: present
+  loop: "{{ workstation_flatpak_apps_docs }}"

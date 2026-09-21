@@ -1,0 +1,27 @@
+---
+# Collections this repository needs beyond ansible.builtin.
+#
+# Install before the first run, in WSL2, and in CI:
+#   ansible-galaxy collection install -r infra/ansible/requirements.yml
+#
+# community.general arrived with the development machine, for three modules
+# that ansible-core does not ship: `npm` for the Claude Code CLI, `flatpak` for
+# Obsidian and IntelliJ, and `timezone` for the clock. The alternative was three
+# `command` tasks guarded by `creates:`, which run once and then lie about the
+# state of the machine for ever after.
+#
+# In WSL2 it is usually there already: `pipx install ansible` brings the whole
+# collection set with it, and 13.4.0 was installed on 21/09/2026 without anyone
+# asking for it. This file is what makes that explicit, and it is what CI needs,
+# where only ansible-lint is installed and nothing brings collections along.
+# Without it the linter still passes but silently skips option validation for
+# every module it cannot load, which is the half of a check that matters.
+#
+# Pinned by floor rather than exactly, unlike the OpenTofu provider in
+# infra/opentofu/versions.tf. The difference is what a surprise costs: a provider
+# that changes can destroy a VM, while a collection that changes breaks a module
+# call loudly in a playbook that has not run yet. The day that costs something,
+# this becomes an exact version.
+collections:
+  - name: community.general
+    version: ">=10.0.0"

@@ -122,6 +122,60 @@ After that a container is no different from the VM: it enters `inventory/hosts.y
 
 **Done for all five on 21/09/2026**, one at a time and Caddy first, each second run reporting `changed=0`, and every container now at zero packages pending. Two habits came out of it. The containers are taken with `--limit`, one by one, because the role's first task upgrades everything `apt` knows, which on these guests includes Docker and therefore restarts what is running inside; what runs unattended afterwards is only Debian, which is the point of writing the origins out. And the guest that carries the tunnel, LXC 103, is the one to do last, since Ansible reaches it through the very tunnel it serves.
 
+## How the development machine is built, and why not the same way
+
+VM 110 `mnt-mate` is the second guest created from this repository, and it is created differently on purpose. Mint publishes no cloud image: what the project ships are live ISOs whose installer takes no preseed and no autoinstall. So the chain that builds the k3s node, `download_file` of a qcow2 into `import_from` with cloud-init writing the user, the key and the address, has no equivalent here.
+
+What that costs, and what it does not:
+
+| | k3s node, VM 109 | Development machine, VM 110 |
+|---|---|---|
+| The image | Debian cloud image, checksummed | Mint ISO, checksummed |
+| First boot | cloud-init: user, key, address | **the installer, by hand, about 20 minutes** |
+| The door for Ansible | opened by cloud-init | `bootstrap-mint.sh`, one command at the console |
+| Everything installed | Ansible | Ansible |
+| Rebuilding it | one `apply` and one playbook | the same, plus the installer again |
+
+Considered and refused: swapping the system for an Ubuntu cloud image with the MATE desktop on top, which would remove the manual step entirely and is what the Mint requirement was weighed against. Mint was the deliberate choice, so the twenty minutes are the price, and the way out of paying them twice is a Proxmox template taken from the finished machine, which is written down as a decision rather than done by reflex.
+
+The rest of the design is the same as the node: no boot order, because that needs `Sys.Modify`; the agent enabled only by a second `apply`, once Ansible has installed it; and the ISO kept in `local` afterwards, because it is the only way back to the same starting point. One attribute is unique to this machine, `lifecycle { ignore_changes = [started] }`: a development VM is turned on when somebody sits down to use it, so the power state belongs to a person, and the code says so instead of fighting them over it at every `apply`.
+
+## How Ansible gets into the development VM
+
+A VM has no `pct exec`, and the QEMU guest agent is not installed yet at that point, so the door is opened from inside, at the Proxmox console, with one command. That is what [`ansible/bootstrap-mint.sh`](ansible/bootstrap-mint.sh) exists for: the static address through `nmcli`, the SSH server, the `ansible` user with no password, `sudo` without a password, the key, sshd refusing passwords and root, and the keyboard layout. Every step checks before it acts, and the address step in particular checks first so that a second run does not drop the network under an SSH session using it.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/RuiGRMargarido/homelab/master/infra/ansible/bootstrap-mint.sh | sudo bash -s -- "ssh-ed25519 AAAA... ansible@homelab"
+```
+
+The key is pasted through the noVNC clipboard. Yes, this is a `curl | bash`, which this repository refuses for other people's software, and the difference is whose file it is: this one is in this public repository and can be read before it is run. Installing a third party product that way buys nothing comparable.
+
+**The installer's answers, decided in advance** rather than improvised in front of the screen, which is also what makes the machine reproducible by somebody who is not the person who built it:
+
+| Screen | Answer | Why |
+|---|---|---|
+| Language | Português (Portugal) | |
+| Keyboard | **Español** | The same `es` that `dev.tf` gives the console and the role writes into the system |
+| Multimedia codecs | No | They want network during the installation, and nothing here needs them |
+| Installation type | Erase the disk | It is the only disk and it is empty |
+| Time zone | Lisbon | Set again by the role, so it does not depend on this answer |
+| User | yours, with a password | Not `ansible`: that one is created by the script above and has no session |
+| Automatic login | No | A machine reachable over the network does not leave a session open by itself |
+
+**What stays manual afterwards, by decision**, because it is identity and credentials rather than configuration, and automating it would mean writing it into a public repository:
+
+```bash
+gh auth login
+```
+
+```bash
+git config --global user.name "..." && git config --global user.email "..."
+```
+
+Plus the SSH key for the GitHub account, the password of the person's own user, and accepting the host key on the first NoMachine connection. Ten minutes, once, and the list is here so it is copy and paste rather than memory.
+
+Everything else is [`roles/workstation`](ansible/roles/workstation): the keyboard, the clock, the locale, the base packages, NoMachine, VS Code with its extensions, IntelliJ, git and the GitHub CLI, Node, Docker, the JDK and Maven, Obsidian, PlantUML, and the Claude Code CLI. Each block is a variable in [`inventory/group_vars/dev.yml`](ansible/inventory/group_vars/dev.yml) and carries a tag of the same name, so adding one later is `--tags docker` and three minutes. The role also installs `dev-smoke`, which checks every item of that list in one command and exits non-zero if anything is missing.
+
 ## Prerequisites
 
 Installed 11/09/2026, `kubectl` replaced on 17/09/2026, Helm moved on 18/09/2026. Versions are recorded because a version skew is the most likely cause of something behaving differently later:
@@ -133,6 +187,15 @@ Installed 11/09/2026, `kubectl` replaced on 17/09/2026, Helm moved on 18/09/2026
 | `kubectl` | 1.36.4 | WSL2, `/usr/local/bin`, from `dl.k8s.io` and checked against its published sha256. The exact version of the server, so the one-minor skew is not a question. The copies on Windows, Docker Desktop's 1.34.1 and a `winget` 1.37.0, are not used by this project |
 | `ansible-core` | 2.21.4 | WSL2 (Ubuntu 24.04), as `root` |
 | `ansible-lint` | 26.8.0 | WSL2 |
+| `community.general` | 13.4.0 | WSL2, brought in by `pipx install ansible`, and declared in `ansible/requirements.yml` since 21/09/2026 |
+
+Collections are not part of `ansible-core`, so they are declared rather than assumed:
+
+```bash
+ansible-galaxy collection install -r infra/ansible/requirements.yml
+```
+
+In WSL2 that usually changes nothing, because the full `ansible` package already carries `community.general`. It matters in CI, where only `ansible-lint` is installed: without it the linter still passes and quietly skips option validation for every module it cannot load, which is the half of the check worth having.
 
 The versions pinned on the other side live in the code itself: the provider in `opentofu/versions.tf`, and the k3s release with its install script checksum in `ansible/roles/k3s_server/defaults/main.yml`.
 

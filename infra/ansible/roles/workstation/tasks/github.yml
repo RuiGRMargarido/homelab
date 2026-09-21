@@ -1,0 +1,43 @@
+---
+# git from Mint, and the GitHub CLI from GitHub, which is what turns cloning and
+# opening pull requests into two commands and keeps tokens out of places they
+# should not be.
+#
+# What stays manual, by decision: `gh auth login`, `git config --global` for the
+# name and the email, and adding this machine's SSH key to the account. Those are
+# identity and credentials, and automating them would mean writing them into this
+# repository, which is public. They are listed in infra/ansible/README.md as
+# copy and paste, which is the honest place for them.
+#
+# The keyring is fetched separately here, unlike the other three repositories:
+# GitHub publishes a dearmoured (binary) key, and pointing apt at a binary file
+# named `.asc` is the kind of detail that works until it does not.
+
+- name: Fetch the GitHub CLI keyring
+  ansible.builtin.get_url:
+    url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
+    dest: /usr/share/keyrings/githubcli-archive-keyring.gpg
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: GitHub repository for the CLI
+  ansible.builtin.deb822_repository:
+    name: github-cli
+    types: [deb]
+    uris: https://cli.github.com/packages
+    suites: [stable]
+    components: [main]
+    architectures: [amd64]
+    signed_by: /usr/share/keyrings/githubcli-archive-keyring.gpg
+    state: present
+    enabled: true
+
+- name: Install git, git-lfs and the GitHub CLI
+  ansible.builtin.apt:
+    name:
+      - git
+      - git-lfs
+      - gh
+    state: present
+    update_cache: true

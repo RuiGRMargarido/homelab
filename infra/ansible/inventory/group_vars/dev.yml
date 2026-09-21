@@ -1,0 +1,27 @@
+---
+# Why the development machine differs from everything else in this inventory.
+
+# It is a VM, so the guest agent means something here.
+base_guest_agent: true
+
+# And yet no automatic reboot, unlike the k3s node. This is the one guest with
+# a person sitting in front of it: a role that reboots the machine because a
+# kernel arrived would be pulling the floor out from under whoever is working.
+# The newest kernel still gets installed; deciding when to use it belongs to
+# the person who is looking at the screen.
+base_reboot_when_required: false
+
+# Mint 22.3 is Ubuntu 24.04 underneath, and the origins of its packages have
+# nothing to do with Debian. With the Debian file, `${distro_codename}` would
+# expand to `zena` and not one pattern would match anything, so
+# unattended-upgrades would be installed and protecting nothing.
+base_unattended_origins_file: apt-52homelab-mint.conf
+
+# The account created by the Mint installer: the one that gets the desktop, the
+# docker group and the editor extensions. It is not `ansible`, which exists for
+# this playbook and has no session of its own.
+#
+# Fill this in with the name chosen during the installation. The role stops with
+# a message rather than guessing, because guessing here means installing an
+# extension into a home directory that does not exist.
+workstation_user: ""

@@ -67,7 +67,14 @@ jobs:
             echo "No playbooks or roles under infra/ansible yet. Nothing to lint."
             exit 0
           fi
-          pipx install ansible-lint
+          # --include-deps so that ansible-galaxy, which belongs to
+          # ansible-core, lands on PATH as well. Without it the next line fails
+          # with "command not found" in a job whose name says ansible-lint.
+          pipx install --include-deps ansible-lint
+          # community.general arrived with the development machine, for the npm,
+          # flatpak and timezone modules. Without it ansible-lint cannot resolve
+          # those names and fails on the role rather than on the code.
+          ansible-galaxy collection install -r infra/ansible/requirements.yml
           ansible-lint infra/ansible
 
       - name: kubeconform

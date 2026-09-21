@@ -1,0 +1,47 @@
+---
+# Keyboard, clock, locale and the welcome screen: four things that on every
+# hand-made machine exist only because somebody answered a question once. Here
+# they are written down, which is the difference between a machine that can be
+# rebuilt and one that has to be remembered.
+
+- name: Set the keyboard layout for the console and for X11
+  ansible.builtin.lineinfile:
+    path: /etc/default/keyboard
+    regexp: '^XKBLAYOUT='
+    line: 'XKBLAYOUT="{{ workstation_keymap }}"'
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply the keyboard configuration
+
+- name: Set the time zone
+  community.general.timezone:
+    name: "{{ workstation_timezone }}"
+
+- name: Generate the locale
+  community.general.locale_gen:
+    name: "{{ workstation_locale }}"
+    state: present
+
+- name: Make sure the person has an autostart directory
+  ansible.builtin.file:
+    path: "/home/{{ workstation_user }}/.config/autostart"
+    state: directory
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    mode: "0755"
+
+# A new session should open on the desktop, not on a wizard. The system copy in
+# /etc/xdg/autostart is left alone: hiding it per user is the supported way and
+# survives an upgrade of the package that owns it.
+- name: Keep the Mint welcome screen out of new sessions
+  ansible.builtin.copy:
+    dest: "/home/{{ workstation_user }}/.config/autostart/mintwelcome.desktop"
+    content: |
+      [Desktop Entry]
+      Type=Application
+      Name=mintwelcome
+      Hidden=true
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    mode: "0644"

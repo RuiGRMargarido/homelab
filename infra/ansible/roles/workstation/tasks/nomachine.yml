@@ -1,0 +1,34 @@
+---
+# NoMachine publishes no apt repository, only a .deb per release. So: a file
+# pinned by version, verified against the checksum the vendor publishes beside
+# it, and installed from disk. Not `curl | sh`, and not a package that follows
+# whatever is newest on their server today.
+#
+# It attaches to the session that is already on screen, the same one the Proxmox
+# console shows, which is why xrdp is deliberately not installed: xrdp would open
+# a second, parallel session of the same person, and two MATE sessions competing
+# over one profile is a short road to configuration that overwrites itself.
+#
+# It listens on 4000/TCP, reachable from the PC through the WireGuard tunnel with
+# no new firewall rule, like SSH and the Kubernetes API before it.
+
+- name: Make a place for downloaded packages
+  ansible.builtin.file:
+    path: /var/cache/homelab
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Fetch the NoMachine package
+  ansible.builtin.get_url:
+    url: "{{ workstation_nomachine_url }}"
+    dest: "/var/cache/homelab/nomachine-personal-edition_{{ workstation_nomachine_version }}_amd64.deb"
+    checksum: "{{ workstation_nomachine_checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install NoMachine
+  ansible.builtin.apt:
+    deb: "/var/cache/homelab/nomachine-personal-edition_{{ workstation_nomachine_version }}_amd64.deb"
