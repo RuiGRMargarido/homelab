@@ -84,8 +84,13 @@ jobs:
           # Kustomization files are kustomize's own input, not API objects, and
           # have no schema to check against. Helm values files are not API
           # objects either; what they produce is checked in the helm job below.
+          # The operator's own kinds, such as a ScrapeConfig, come from the
+          # community CRD catalog, the same source the helm job uses.
           ./kubeconform -summary -strict -kubernetes-version 1.36.4 -skip Kustomization \
-            -ignore-filename-pattern 'values\.yaml$' infra/kubernetes
+            -ignore-filename-pattern 'values\.yaml$' \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            infra/kubernetes
 
   helm:
     name: Helm charts (render and validate)
