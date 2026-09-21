@@ -34,7 +34,11 @@ resource "proxmox_virtual_environment_container" "arr" {
   # And it does not come back on its own. Until 21/09/2026 this said `true`,
   # which contradicted the line above: that day the host was upgraded and
   # rebooted, Proxmox started the stack because its `onboot` was set, and the
-  # intention to keep it stopped existed only in a document. Now the two agree.
+  # intention to keep it stopped existed only in a document. Now the two agree,
+  # applied the same day: the plan was these two lines and nothing else, the
+  # apply took two seconds, and the container's `onboot` is `0` while its boot
+  # order stayed untouched, so the privilege this token is refused was never
+  # needed.
   start_on_boot = false
 
   delete_unreferenced_disks_on_destroy = false
