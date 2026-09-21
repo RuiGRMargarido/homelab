@@ -94,3 +94,11 @@ kubectl apply -f infra/kubernetes/monitoring/scrapeconfig-proxmox-host.yaml
 ```
 
 `kubectl diff` exits `1` when it finds differences, which is what a new object is, so the first run is expected to end in `1` and print the object it would create.
+
+**Done 21/09/2026**, and what it took was less than expected:
+
+- Debian's package at `1.9.0-1+b4`, enabled and listening on `10.10.30.2:9100` alone, serving 3404 metrics.
+- **Nothing had to be opened.** From the k3s node the exporter answered `200` through the firewall, and the Proxmox host's own firewall reports `disabled/running`, so it filters nothing either.
+- The target came up under the same job as the cluster's exporter, which now has two instances: the node and the host.
+- The package pulls in `prometheus-node-exporter-collectors`, a set of timers that write extra metrics into files the exporter reads. Two are worth having on this machine, the count of pending `apt` updates and the disks' SMART data; the ones for IPMI and Mellanox cards find no such hardware and simply produce nothing.
+- **The CI had to learn the operator's kinds.** `ScrapeConfig` has no built-in schema, so the manifests job failed for lack of one until it was given the same community CRD catalog the Helm job already used.
