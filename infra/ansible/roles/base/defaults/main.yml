@@ -1,0 +1,10 @@
+---
+# The QEMU guest agent only means something in a VM: it answers the hypervisor
+# through a virtio serial device that a container does not have.
+base_guest_agent: true
+
+# Whether this guest may restart itself when an upgrade asks for one. True for
+# the VMs. False for the containers, on purpose: one of them carries the
+# WireGuard tunnel this very connection runs through, and another is the
+# monitor. There the role says so and a person picks the moment.
+base_reboot_when_required: true

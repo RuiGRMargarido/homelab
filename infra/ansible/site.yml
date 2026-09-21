@@ -5,6 +5,10 @@
 #
 # A second run must report changed=0. That is the test that this describes a
 # state rather than a sequence of commands that happened to work once.
+#
+# The containers are taken one at a time, with `--limit`, until each has been
+# through a first run: that first run installs the sixty-odd packages each of
+# them is behind, and may restart what is running inside.
 
 - name: Configure the k3s node
   hosts: k3s
@@ -12,3 +16,9 @@
   roles:
     - base
     - k3s_server
+
+- name: Configure the containers
+  hosts: containers
+  become: true
+  roles:
+    - base

@@ -15,6 +15,32 @@
   ansible.builtin.apt:
     name: qemu-guest-agent
     state: present
+  when: base_guest_agent
+
+# The same policy the host was given by hand on 21/09/2026, the day the
+# containers turned out to be 55 to 65 packages behind with nothing able to
+# reach inside them. The two files decide what is applied and how often; both
+# are in this role, so one edit reaches every guest.
+- name: Install unattended-upgrades
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+
+- name: Write which updates may be applied unattended
+  ansible.builtin.copy:
+    src: apt-52homelab.conf
+    dest: /etc/apt/apt.conf.d/52homelab
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Write how often they are applied
+  ansible.builtin.copy:
+    src: apt-20auto-upgrades.conf
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
 
 - name: Check whether an upgrade is waiting for a reboot
   ansible.builtin.stat:
@@ -24,4 +50,15 @@
 - name: Reboot when a new kernel or core library is waiting
   ansible.builtin.reboot:
     reboot_timeout: 600
-  when: base_reboot_required.stat.exists
+  when:
+    - base_reboot_required.stat.exists
+    - base_reboot_when_required
+
+# The guests that do not restart themselves say so instead, so that a waiting
+# upgrade is a decision rather than something nobody noticed.
+- name: Report a restart this guest will not take on its own
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: an upgrade is waiting for a restart. Restart it when it suits you."
+  when:
+    - base_reboot_required.stat.exists
+    - not base_reboot_when_required

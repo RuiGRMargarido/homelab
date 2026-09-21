@@ -1,0 +1,4 @@
+---
+# Why the containers differ from the VMs, in two lines.
+base_guest_agent: false
+base_reboot_when_required: false
