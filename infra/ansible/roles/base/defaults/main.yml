@@ -3,8 +3,9 @@
 # through a virtio serial device that a container does not have.
 base_guest_agent: true
 
-# Whether this guest may restart itself when an upgrade asks for one. True for
-# the VMs. False for the containers, on purpose: one of them carries the
-# WireGuard tunnel this very connection runs through, and another is the
-# monitor. There the role says so and a person picks the moment.
+# Whether this guest reboots itself when its running kernel is no longer the
+# newest one installed. True for the VMs. False for the containers, which have
+# no kernel of their own: they run the host's, so there is nothing there for a
+# reboot to pick up, and one of them carries the tunnel this very connection
+# runs through.
 base_reboot_when_required: true

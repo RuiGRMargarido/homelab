@@ -42,23 +42,27 @@
     group: root
     mode: "0644"
 
-- name: Check whether an upgrade is waiting for a reboot
-  ansible.builtin.stat:
-    path: /var/run/reboot-required
-  register: base_reboot_required
+# A reboot is only ever about the kernel, which is why the containers are left
+# out of this: they run the host's. Debian restarts the daemons it upgrades by
+# itself, so there is nothing for a container to wait for.
+#
+# The check is a comparison rather than the usual `/var/run/reboot-required`.
+# That file does not exist on Debian unless `reboot-notifier` is installed,
+# and that package depends on a mail agent and a mail server, which is a lot of
+# machinery to learn one fact. Until 21/09/2026 this role looked for the file
+# anyway, so the task never once fired.
+- name: Find the newest kernel installed
+  ansible.builtin.shell:
+    cmd: set -o pipefail && ls -1 /boot/vmlinuz-* | sed 's|.*/vmlinuz-||' | sort -V | tail -1
+    executable: /bin/bash
+  register: base_newest_kernel
+  changed_when: false
+  when: base_reboot_when_required
 
-- name: Reboot when a new kernel or core library is waiting
+- name: Reboot when the running kernel is not the newest installed one
   ansible.builtin.reboot:
     reboot_timeout: 600
   when:
-    - base_reboot_required.stat.exists
     - base_reboot_when_required
-
-# The guests that do not restart themselves say so instead, so that a waiting
-# upgrade is a decision rather than something nobody noticed.
-- name: Report a restart this guest will not take on its own
-  ansible.builtin.debug:
-    msg: "{{ inventory_hostname }}: an upgrade is waiting for a restart. Restart it when it suits you."
-  when:
-    - base_reboot_required.stat.exists
-    - not base_reboot_when_required
+    - base_newest_kernel.stdout | default('') | length > 0
+    - base_newest_kernel.stdout != ansible_kernel

@@ -101,7 +101,7 @@ kubectl apply -f infra/kubernetes/monitoring/scrapeconfig-proxmox-host.yaml
 - Debian's package at `1.9.0-1+b4`, enabled and listening on `10.10.30.2:9100` alone, serving 3404 metrics.
 - **Nothing had to be opened.** From the k3s node the exporter answered `200` through the firewall, and the Proxmox host's own firewall reports `disabled/running`, so it filters nothing either.
 - The target came up under the same job as the cluster's exporter, which now has two instances: the node and the host.
-- The package pulls in `prometheus-node-exporter-collectors`, a set of timers that write extra metrics into files the exporter reads. Two are worth having on this machine, the count of pending `apt` updates and the disks' SMART data; the ones for IPMI and Mellanox cards find no such hardware and simply produce nothing.
+- The package pulls in `prometheus-node-exporter-collectors`, a set of timers that write extra metrics into files the exporter reads. Two are worth having on this machine, the count of pending `apt` updates and the disks' SMART data; the ones for IPMI and Mellanox cards find no such hardware and simply produce nothing. One of its metrics is inert here, and it took until 21/09/2026 to notice: `node_reboot_required` reads `/var/run/reboot-required`, a file nothing creates on Debian unless `reboot-notifier` is installed, and that package depends on a mail agent and a mail server. The count of pending packages is the one that works.
 - **The CI had to learn the operator's kinds.** `ScrapeConfig` has no built-in schema, so the manifests job failed for lack of one until it was given the same community CRD catalog the Helm job already used.
 
 ### Two exporters, two kernels
