@@ -2,12 +2,18 @@
 # Installs a single-node k3s server at a pinned version and hands its
 # kubeconfig to the control machine, pointed at the node.
 
+# `check_mode: false` on the two read-only commands here, so that a dry run
+# asks the node the same questions a real run does. Without it Ansible skips
+# every command in check mode, which on 21/09/2026 made the version come back
+# empty, the install block look necessary, and the wait below retry thirty
+# times against an answer that was never going to arrive.
 - name: Read the installed k3s version, if any
   ansible.builtin.command:
     cmd: /usr/local/bin/k3s --version
   register: k3s_server_installed
   changed_when: false
   failed_when: false
+  check_mode: false
 
 - name: Install or upgrade k3s to the pinned version
   when: k3s_server_version not in (k3s_server_installed.stdout | default(''))
@@ -41,6 +47,7 @@
   retries: 30
   delay: 10
   changed_when: false
+  check_mode: false
 
 - name: Hand the kubeconfig to the control machine
   ansible.builtin.import_tasks: kubeconfig.yml
