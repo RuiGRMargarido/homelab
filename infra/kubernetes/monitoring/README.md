@@ -161,3 +161,17 @@ It runs in the cluster and not on the host. The hypervisor gains nothing to main
    ```
 
 The address of the host to read is a scrape parameter rather than a setting of the deployment, because the exporter answers for whichever host it is asked about. It is scraped once a minute: the figures are Proxmox's own averages, and each scrape is a round of API calls.
+
+**Running since 21/09/2026**, and its first reading is the one this homelab had never had in one place. `pve_memory_usage_bytes`, by guest:
+
+| Guest | Using | Configured |
+|---|---|---|
+| `node/pve`, the host itself | 12.02 GiB | 23.4 GiB |
+| `qemu/102` TrueNAS | 5.48 GiB | 6 GiB |
+| `qemu/109` k3s | 3.58 GiB | 4 GiB |
+| `qemu/106` OPNsense | 1.29 GiB | 2 GiB |
+| `lxc/105` Jellyfin, `lxc/104` Nextcloud, `lxc/108` monitor | 0.17, 0.15 and 0.13 GiB | 4, 2 and 0.5 GiB |
+| `lxc/101` Caddy, `lxc/103` WireGuard | 0.02 and 0.01 GiB | 0.5 GiB each |
+| `qemu/100` and `lxc/107`, both stopped | 0 | - |
+
+Two things to read from it. The three VMs hold almost everything, and each sits close to what it was given, because a VM's memory is taken when it is touched and rarely handed back; the six containers together use less than a fifth of what one of them was configured for. And the host's own 12 GiB total is about 1.2 GiB more than the guests add up to, which is Proxmox itself and the cache it keeps for them.
