@@ -20,6 +20,8 @@ Main note (MOC - *map of content*) for the project. Always start here.
 - [Architecture and workflow](docs/WORKFLOW.md) - a beginner-friendly explanation of where each tool lives and how it all fits together.
 - [Infrastructure as code](infra/README.md) - where OpenTofu, Ansible and `kubectl` run, how the k3s node was built, and how to run it.
 - [Workloads on k3s](infra/kubernetes/README.md) - the conventions of what runs inside the cluster, how it is applied, and what Kubernetes repairs on its own.
+- [The monitoring stack](infra/kubernetes/monitoring/README.md) - what the chart installs, what was read before installing it, and the memory each guest actually uses.
+- [The development machine](infra/README.md#how-the-development-machine-is-built-and-why-not-the-same-way) - why VM 110 is not built the way the k3s node is, and what is manual about it.
 
 ## Services
 *(still empty - create one note per service under `docs/services/` once the first one is installed, e.g. TrueNAS)*
@@ -33,3 +35,4 @@ Main note (MOC - *map of content*) for the project. Always start here.
 - 11/08/2026: documentation translated to English and files renamed, as the project became part of a public portfolio.
 - 17/09/2026: added links to the monitoring document and to `infra/README.md`, which had none from here; the tooling line no longer lists Healthchecks, dropped on 31/08/2026.
 - 17/09/2026: added the link to `infra/kubernetes/README.md`, written with the first workload on k3s.
+- 22/09/2026: added the links to the monitoring stack and to the development machine, VM 110, which was built from code on 21/09 and had no way in from this note.

@@ -6,7 +6,7 @@ Quick-reference document: "how the network is put together", to consult at any m
 
 **About the formats**: the diagrams come in two formats, deliberately. The ones that change with every network change (current state, rule matrix, packet paths) stay in **Mermaid**, written directly in the markdown, because editing text is fast and needs no tooling. The ones that are stable and act as showcase pieces (target state, physical topology) are **hand-written SVG** under `diagrams/`, because Mermaid's automatic layout cannot align the firewall interfaces above the zones they serve, nor place the zones side by side. The trade is intentional: better looks where it counts, easier editing where things move often.
 
-## Diagram 1: current state (17/09/2026)
+## Diagram 1: current state (22/09/2026)
 
 The most important reading of this diagram: **the Trusted zone now holds every service that stores or serves data**. TrueNAS moved there on 11/08/2026 and was alone for four weeks; Jellyfin and Nextcloud joined it on 08/09/2026. What remains on the flat network is Caddy, which has no configuration yet and will be created directly in the right zone; Uptime Kuma, which is there **on purpose**: to raise an alert it must reach the internet without depending on the firewall it watches; and the *arr stack (LXC 107), there since it was created on 12/08 and stopped since 08/09, a placement no document recorded until the inventory was checked against the host on 17/09/2026, and a zone never decided.
 
@@ -65,7 +65,7 @@ flowchart TB
     PC -. "WireGuard peer" .-> WG
     WG -. "authenticated tunnel" .-> PVEB
     WG -. "Ansible, kubectl" .-> K3S
-    WG -. "Ansible, RustDesk" .-> MNT
+    WG -. "Ansible, X2Go" .-> MNT
 
     classDef neut fill:#8A93A3,stroke:#5B6472,color:#12161C
     classDef flat fill:#B5651D,stroke:#8A4A15,color:#FFF8F0
@@ -112,7 +112,7 @@ Checked against the host on 17/09/2026: the bridge, VLAN tag and address of ever
 | Jellyfin | LXC 105 | **Trusted** | `http://10.10.20.87:8096`, or `http://192.168.1.95:8096` from the home network | *(migrated 08/09/2026)* |
 | *arr stack (qBittorrent, Sonarr, Radarr, Prowlarr, Jellyseerr) | LXC 107 | Flat network | `192.168.1.90`, one web interface per application; **stopped since 08/09/2026** | *(never decided - see `CHECKLIST.md` §Open decisions)* |
 | Uptime Kuma | LXC 108 | Flat network | `http://192.168.1.91:3001` | *(stays, by design - see `MONITORING.md`)* |
-| mnt-mate (dev) | VM 110 | **Trusted** | `10.10.20.12:22` (SSH, user `ansible`, key only) and the RustDesk direct port in the `2111x` range for the desktop. Off unless somebody is using it | *(rebuilt 21/09/2026: VM 100 deleted, VM 110 created by OpenTofu in Trusted)* |
+| mnt-mate (dev) | VM 110 | **Trusted** | `10.10.20.12:22` (SSH, as `ansible` for Ansible and as `rui` for X2Go, key only, no passwords). The desktop has **no port of its own**: X2Go travels inside that same SSH connection. Off unless somebody is using it | *(rebuilt 21/09/2026: VM 100 deleted, VM 110 created by OpenTofu in Trusted)* |
 | VPN clients | - | Tunnel | `10.10.40.2` (phone), `10.10.40.3` (PC). The PC's tunnel is also the administration path into Trusted and Management since 16/09/2026 (Ansible over SSH, `kubectl`) | *(unchanged)* |
 
 ### Ports per service
@@ -132,6 +132,7 @@ Reference for writing the restricted firewall rules that are still missing (see 
 | Nextcloud | 8080 | TCP | Web interface |
 | Jellyfin | 8096 | TCP | Web interface |
 | Jellyfin | 1900, 7359 | UDP | Local network auto-discovery *(optional)* |
+| mnt-mate (dev) | 22 | TCP | SSH, and the graphical session on top of it: X2Go opens no port of its own |
 | k3s-1 | 22 | TCP | SSH, for Ansible (key only) |
 | k3s-1 | 6443 | TCP | Kubernetes API, for `kubectl` |
 | k3s-1 | 80, 443 | TCP | Traefik, the ingress controller k3s installs by default, behind its ServiceLB. `/whoami` reaches the test workload; any other path answers `404` |
@@ -295,7 +296,7 @@ Only **initiated** connections count. Replies on established connections always 
 flowchart LR
     NET(("Internet")):::neut
     DMZ["DMZ<br/>WireGuard"]:::dmz
-    TRU["Trusted<br/>TrueNAS · Nextcloud<br/>Jellyfin · k3s-1"]:::tru
+    TRU["Trusted<br/>TrueNAS · Nextcloud<br/>Jellyfin · k3s-1 · mnt-mate"]:::tru
     MGM["Management<br/>Proxmox"]:::mgmt
     PLA["Flat network<br/>household · Caddy<br/>Uptime Kuma · arr stack"]:::flat
 
@@ -417,7 +418,7 @@ It does not touch the firewall, and depends on neither OPNsense nor WireGuard. *
 
 ### Flow 4: the home PC administers the zones through its tunnel
 
-Added 17/09/2026. The path every administration command from the PC has taken into the zones since 16/09: `kubectl` to the Kubernetes API is drawn here, and Ansible over SSH follows it hop for hop to port 22 instead. It starts inside WSL2, a small Linux VM on the PC, whose traffic leaves through Windows and so obeys the Windows routes, which is how a tunnel opened in Windows serves tools running in Linux.
+Added 17/09/2026. The path every administration command from the PC has taken into the zones since 16/09: `kubectl` to the Kubernetes API is drawn here, and Ansible over SSH follows it hop for hop to port 22 instead. **Since 22/09 the graphical session does too**: X2Go to the development machine is SSH, so it is this same flow ending at `10.10.20.12:22`, with no port and no rule of its own. It starts inside WSL2, a small Linux VM on the PC, whose traffic leaves through Windows and so obeys the Windows routes, which is how a tunnel opened in Windows serves tools running in Linux.
 
 ```mermaid
 sequenceDiagram
@@ -486,4 +487,4 @@ General Wi-Fi, the guest network and any eventual IoT isolation stay **outside**
 - 17/09/2026: **documentation review after Phase 4 reached a running k3s node, and four diagrams were describing an earlier month.** The current-state diagram gained k3s-1 in Trusted and the tunnel from the home PC that administers it. The matrix diagram still drew Nextcloud and Jellyfin on the flat network, and the flat network with no way into Trusted, while four redirects have carried the household there since 08/09; the rule table listed two of those four. Flow 1 still ended at Jellyfin's old flat address, around the firewall rather than through it. Added Flow 4, the administration path through the tunnel, with the failures already met on it, and the ports of k3s-1, including 80 and 443, which answer before anything is deployed because k3s ships Traefik by default. The pending WAN-side rule for the PC is closed by the decision of 16/09. And both SVGs were redrawn: the physical topology still showed the powerline carrying the uplink, a week after the direct cable of 10/09, and the target state did not know k3s-1 existed.
 - 17/09/2026: **the inventory checked against the host, and it had never listed two guests.** `pct config` and `qm config` for every guest, bridge, VLAN tag and address, confirmed every row that existed and found two that did not: LXC 108, the monitor, and LXC 107, the *arr stack, which has lived on the flat network at `192.168.1.90` since it was created on 12/08. Several places in this document, the legend and the matrix diagram among them, described the flat network as holding only Caddy and Uptime Kuma. The stack is stopped, so the omission exposed nothing, but its zone was never decided either, which is now an open decision in `CHECKLIST.md`.
 - 21/09/2026: **the development VM came back, and came back in Trusted.** VM 100 `mnt-mate` had sat on the flat network at `192.168.1.212`, powered off since August and promised to a machine that does not exist yet. It was deleted, and VM 110 was created by OpenTofu at `10.10.20.12`, in the zone the decision of 24/08 had closed as no longer applicable. What that changes here: the flat network loses its last VM and now holds only Caddy, Uptime Kuma and the stopped *arr stack; Trusted gains a fifth address; and the machine is reached from the PC the same way as everything else there, through the WireGuard tunnel, with SSH on `:22` for Ansible and a remote desktop on top of it. No firewall rule was added for either: the tunnel already reaches the zone, which is the same thing that made the k3s API work in September without a new rule.
-- 22/09/2026: **the remote desktop took three tries, and the path was never the problem.** The first attempt, NoMachine, was refused by its own licensing; the second, xrdp, works and feels like 2010 because Ubuntu 24.04 carries 0.9.24 and H.264 over RDP arrives in 0.10; the third, RustDesk, sends video and attaches to the session already on screen. Between the second and the third the path was measured instead of blamed, which is the part worth keeping: **2ms round trip and 79MB/s from the PC to `10.10.20.12`**, through the WireGuard tunnel, over `scp` of a 23MB file. The hairpin this document has warned about since 16/09 was not happening, the guest was 86% idle, and what was left was the one thing nobody had looked at, an emulated VGA framebuffer that is slow to draw into and slower to read back, thirty times a second. It is `virtio-gpu` now.
+- 22/09/2026: **the remote desktop took four tries, and the path was never the problem.** NoMachine was refused by its own licensing; xrdp works and feels like 2010, because Ubuntu 24.04 carries 0.9.24 and H.264 over RDP arrives in 0.10; RustDesk sends video and pays for every frame in processor on a machine with no GPU; X2Go compresses drawing operations instead of frames and was visibly better on the first attempt. Between the second and the third the path was measured instead of blamed, which is the part worth keeping: **2ms round trip and 79MB/s from the PC to `10.10.20.12`**, through the WireGuard tunnel, over `scp` of a 23MB file. The hairpin this document has warned about since 16/09 was not happening, the guest was 86% idle, and what was left was the one thing nobody had looked at, an emulated VGA framebuffer that is slow to draw into and slower to read back, thirty times a second. It is `virtio-gpu` now. The winner changes this document in a way the others would not have: **X2Go opens no port**, riding the SSH connection that already existed, so the development machine ends the day listening on exactly one port, 22, the same as it started.

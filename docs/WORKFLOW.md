@@ -7,6 +7,8 @@ Living document - update it whenever a tool moves or the workflow changes. This 
 **Your PC is where you plan and command. The OptiPlex is where everything runs 24/7.**
 Almost no tool is installed in both places - each one has a single right home. Your PC never runs anything around the clock; it is only used while you are working. The OptiPlex is the one that stays on, doing the background work.
 
+**Since 21/09/2026 there is a second machine that can edit this repository**, VM 110 `mnt-mate`, a Linux Mint desktop on the OptiPlex itself, with VS Code, Obsidian, git and Claude Code. It does not break the rule, it sharpens it: **it deliberately has no `tofu`, no `ansible`, no `kubectl` and no `helm`. The control node is still WSL2 on the PC.** Each of those tools only means something with an administrator credential beside it, and putting four of them on a machine whose job is to run other people's code would copy every secret in the project onto it. So the development machine writes code and documentation; the PC is what commands the infrastructure.
+
 ```mermaid
 graph TB
     GH[GitHub<br/>copy + history]
@@ -19,6 +21,7 @@ graph TB
 
     subgraph OP["OptiPlex server (Proxmox)"]
         PVM["Bare VMs and LXCs<br/>TrueNAS, WireGuard, Caddy, dedicated firewall"]
+        DEV["VM 110 mnt-mate<br/>development desktop, built from code<br/>editors and git, no infrastructure tools"]
         UK["LXC 108 monitor<br/>Uptime Kuma, deliberately outside k3s"]
         K3S["k3s cluster, VM 109<br/>running: a test workload, Prometheus/Grafana<br/>planned: Jellyfin, Nextcloud"]
     end
@@ -38,11 +41,12 @@ graph TB
 | --- | --- | --- |
 | Git | Keeping the history of every change (code, configs, notes) | **Your PC** (repo cloned at `Documents\GitHub\homelab`) |
 | GitHub | Cloud backup of the repo plus a shareable history | **Cloud** (github.com) - your PC pushes and pulls |
-| Obsidian | Reading and editing the documentation more comfortably (links, tags, search) | **Your PC** (points at the same repo folder) |
+| Obsidian | Reading and editing the documentation more comfortably (links, tags, search) | **Your PC**, pointed at the repo folder, and since 21/09/2026 **also on VM 110**, over a clone of the same repository: the `docs/` tree is the vault, `.obsidian/` included |
 | OpenTofu | Creates, imports and destroys VMs and LXCs on Proxmox from code files | **Your PC** - talks to the Proxmox API at `192.168.1.206:8006`, the flat-network address, which needs no tunnel. The Management address has answered too since the PC started using its WireGuard tunnel on 16/09/2026, and moving there is a decision still open (see `infra/README.md`) |
 | Ansible | Configures the bare VMs (TrueNAS, WireGuard, firewall) and installs k3s itself on the dedicated node(s) | **Your PC, inside WSL2** - connects over SSH to the VMs on the OptiPlex, through the WireGuard tunnel (see the technical note below) |
 | **k3s (Kubernetes)** | Runs the application services as *workloads* - Jellyfin, Nextcloud, monitoring - instead of one VM/LXC per service | **OptiPlex**, inside VM 109 `k3s-1` (a single node for now), created by OpenTofu; k3s itself is installed by Ansible. **Not on your PC**, not even inside WSL2 |
 | **kubectl / Helm** | Deploying and updating the application services inside k3s (manifests/Helm charts, `infra/kubernetes/`) | **Your PC, inside WSL2**, beside the kubeconfig Ansible writes there - they are *clients*, they run nothing and store nothing, they just turn commands into HTTP requests to the k3s API on port 6443, through the WireGuard tunnel. `kubectl` is pinned to the server's exact version, 1.36.4; the copies on Windows, including the one Docker Desktop leaves in `PATH`, are not used. Helm joined it on 18/09/2026, for the first chart, and keeps the record of what it installed inside the cluster rather than on the PC |
+| **Development desktop** | Writing code and documentation on a Linux machine, with an editor, a browser and Docker at hand | **OptiPlex**, VM 110 `mnt-mate`, created by OpenTofu and configured by the `workstation` Ansible role. Reached from the PC with X2Go over the WireGuard tunnel, riding SSH. It is off unless somebody is using it, and it holds **no** infrastructure credentials, by decision |
 | Proxmox | The server's "operating system", runs the VMs and LXCs | **OptiPlex** (already installed) |
 | TrueNAS, WireGuard, Caddy, dedicated firewall | Services that run bare, outside k3s - TrueNAS because of disk passthrough; WireGuard and the firewall because they mediate the network zones; Caddy has not been migrated yet | **OptiPlex**, each in its own VM created by Proxmox |
 | Jellyfin, Nextcloud | Application services - media server and personal cloud | **OptiPlex**, today in their own LXCs (105 and 104, Trusted); planned to move into k3s as workloads |
@@ -55,7 +59,7 @@ graph TB
 1. On your PC you edit files (documentation in Obsidian, or Terraform/Ansible/Kubernetes manifests in an editor) - all inside the `homelab` folder.
 2. `git commit` + `push` - it is now stored on GitHub.
 3. From your PC you run `tofu apply` - it talks to Proxmox over the local network and creates or updates the VMs on the OptiPlex, including the k3s node(s).
-4. From WSL2 on your PC you run `ansible-playbook` - it connects over SSH into those VMs, through the WireGuard tunnel: configures what runs bare (TrueNAS, WireGuard, firewall) and installs k3s itself on the dedicated node(s).
+4. From WSL2 on your PC you run `ansible-playbook` (once, before the first run: `ansible-galaxy collection install -r infra/ansible/requirements.yml`, because the roles use modules that `ansible-core` does not ship) - it connects over SSH into those VMs, through the WireGuard tunnel: configures what runs bare (TrueNAS, WireGuard, firewall) and installs k3s itself on the dedicated node(s).
 5. From WSL2 on your PC you run `kubectl apply` / `helm install` - it talks to the k3s API (inside VM 109 on the OptiPlex) and puts the application services (Jellyfin, Nextcloud, Prometheus/Grafana) to run in there, from the manifests and Helm charts in `infra/kubernetes/`.
 6. Uptime Kuma, in its own LXC 108 and deliberately outside k3s, watches the services on its own, with nothing further from you; if something goes down, it sends a message to Slack through the webhook.
 7. You get the alert on your phone or PC via the Slack app - your PC is not an intermediary in that last step.
@@ -78,3 +82,4 @@ OpenTofu runs natively on Windows without trouble, but **Ansible does not run on
 - 17/09/2026: `kubectl` moved into WSL2, at the server's exact version and beside the kubeconfig, and the technical note gained a plain explanation of what WSL2 is, after the natural question of whether k3s had ended up inside it. It had not: it runs in VM 109, and the diagram now says so, with the cluster shown as running and still empty. The rows for Jellyfin, Nextcloud and Prometheus/Grafana described the plan as if it were current, so they now separate where each runs today from where it is headed. Ansible and `kubectl` now show the WireGuard tunnel as their path. Two workflow steps still described Uptime Kuma inside k3s, missed by the correction of 11/09, and were fixed.
 - 18/09/2026: Helm moved into WSL2 beside `kubectl`, for `kube-prometheus-stack`, the first chart.
 - 18/09/2026: Prometheus and Grafana went from planned to running inside k3s, in the diagram and the table.
+- 22/09/2026: **a second machine that can edit the repository, and the rule it does not break.** VM 110 `mnt-mate`, the development desktop, entered the diagram and the table. The golden rule gained the part that matters: that machine has no `tofu`, `ansible`, `kubectl` or `helm`, because each of them is only useful with an administrator credential beside it, and the control node stays in WSL2 on the PC. Obsidian now runs in both places over the same vault, which is this repository. The workflow also gained the step that was only written in the header of `site.yml`: collections are installed before the first playbook run.

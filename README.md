@@ -17,10 +17,10 @@ Everything here is documented as it was actually built, including the parts that
 | Media automation | Sonarr, Radarr, Prowlarr, qBittorrent, Jellyseerr - download traffic isolated behind gluetun |
 | Hardware acceleration | Intel QuickSync passed through to an unprivileged LXC for Jellyfin transcoding |
 | Backups | `rsync` to external SSD plus a verified `mysqldump`, cron-scheduled, restore validated |
-| Monitoring | Uptime Kuma in its own LXC, push-based dead man's switches, alerts to Slack; Prometheus and Grafana on k3s for history |
-| Infrastructure as Code | OpenTofu creating VMs and importing existing guests through a least-privilege Proxmox API token, Ansible roles, validated by GitHub Actions CI |
+| Monitoring | Uptime Kuma in its own LXC, push-based dead man's switches, alerts to Slack; Prometheus and Grafana on k3s for history, reading the hypervisor two ways: a node exporter on the host and the Proxmox API guest by guest |
+| Infrastructure as Code | OpenTofu creating VMs and importing existing guests through a least-privilege Proxmox API token, Ansible roles, validated by GitHub Actions CI. Two machines are born from it: the Kubernetes node and the development desktop |
 | Kubernetes | k3s, a single node on its own VM, built entirely from code; a test workload and the monitoring stack, applied from the repository |
-| Planned | Moving Nextcloud and Jellyfin onto k3s, and Prometheus reaching the Proxmox host |
+| Planned | Moving Nextcloud and Jellyfin onto k3s |
 
 Hardware: Dell OptiPlex 3060 Micro (i5-8500T, 24GB RAM), 1TB HDD, 1TB external SSD for backups, TP-Link TL-SG608E managed switch.
 
@@ -33,7 +33,7 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 | Zone | VLAN | Subnet | Contents |
 |---|---|---|---|
 | DMZ | 10 | `10.10.10.0/24` | WireGuard, the only service reachable from the internet |
-| Trusted | 20 | `10.10.20.0/24` | TrueNAS, Caddy, Nextcloud, Jellyfin, k3s |
+| Trusted | 20 | `10.10.20.0/24` | TrueNAS, Caddy, Nextcloud, Jellyfin, k3s, and the development desktop |
 | Management | 30 | `10.10.30.0/24` | Proxmox web UI and API, switch management |
 | VPN tunnel | - | `10.10.40.0/24` | Virtual subnet, assigned to authenticated clients |
 
@@ -45,11 +45,11 @@ Traffic between zones is mediated by a dedicated OPNsense VM. The home network r
 |---|---|
 | 0. Hardware | Done. RAM upgraded to 24GB on 08/09/2026; a larger SSD is a conditional option with a trigger, not scheduled work |
 | 1. Base services | **Done** and validated (TrueNAS, WireGuard, Caddy, Nextcloud, Jellyfin, backups) |
-| 2. VLANs and firewall | **In progress** (network built; WireGuard, TrueNAS, Nextcloud and Jellyfin migrated. Caddy and the media automation stack remain on the flat network, and the inter-zone rules are still permissive) |
+| 2. VLANs and firewall | **In progress** (network built; WireGuard, TrueNAS, Nextcloud, Jellyfin and the development machine live in their zones. Caddy and the media automation stack remain on the flat network, and the inter-zone rules are still permissive) |
 | 2b. Media automation | **Done** (hardware transcoding, *arr stack behind a VPN kill-switch) |
 | 3. Storage / RAID | **Conditional**, with documented triggers - not scheduled work |
-| 4. IaC and Kubernetes | **In progress** (OpenTofu, Ansible and CI working; a single-node k3s cluster created and installed entirely from code, with a first test workload and then Prometheus and Grafana applied from the repository, and all six existing containers and the firewall VM imported. The TrueNAS VM's import, blocked for now by a bug in the provider, and the real workloads remain) |
-| 5. Monitoring and alerting | **Done** (Uptime Kuma, push heartbeats from host and guests, Slack alerts) |
+| 4. IaC and Kubernetes | **In progress** (OpenTofu, Ansible and CI working; a single-node k3s cluster created and installed entirely from code, with a test workload and then Prometheus and Grafana applied from the repository; all six existing containers and the firewall VM imported; every running guest under Ansible at zero pending packages; and the oldest hand-made guest deleted and rebuilt from code as the development desktop. The TrueNAS VM's import, blocked for now by a bug in the provider, and the real workloads remain) |
+| 5. Monitoring and alerting | **Done**, with three refinements open (Uptime Kuma, push heartbeats from host and guests, Slack alerts; still to do: watching the k3s node, per-container memory pressure, and silencing a check for a service that is deliberately stopped) |
 | 6. Documentation tooling | Not started |
 
 Full task-level breakdown in [CHECKLIST.md](docs/CHECKLIST.md).
@@ -71,6 +71,8 @@ Full task-level breakdown in [CHECKLIST.md](docs/CHECKLIST.md).
 These are the parts worth reading if you want to see how problems were approached, not just what was installed.
 
 **[The hypervisor locked up by a dead NFS mount](docs/CHECKLIST.md#history)** - a routine reboot ended with PID 1 itself in uninterruptible sleep, `systemctl` returning `Transport endpoint is not connected` and the cluster filesystem dead. The host mounts NFS from a VM it hosts itself, so shutting down that VM before unmounting deadlocked the shutdown, and `hard` mounts meant the unmount could never fail. The fix replaced boot-time mounts with `x-systemd.automount` plus `soft`, and revealed that no guest had `onboot` set - which retroactively explained several earlier "the services stopped working" reports. The write-up also records a fix I got wrong first: an ordering directive that created a circular dependency between the mount and the guests waiting on it.
+
+**[A saved plan that was never applied looks exactly like a machine that works](docs/CHECKLIST.md#history)** - the QEMU guest agent on a new VM was reported as done on the strength of an OpenTofu plan that had been generated and never applied. Nothing contradicted it: the machine ran, the playbook was green, and the plan file sat in the directory looking like finished work. What settled it was asking the host instead of the record, `qm config 110`, which answered `agent: enabled=0`. The same habit found a second fault the same evening, in a task that writes `authorized_keys`: a double-quoted YAML scalar spread over two source lines, and **YAML folds line breaks into spaces**, so `join('\n')` became `join(' ')` and two SSH keys were written on one line. sshd read the first and treated the second, an entire RSA key, as its comment. One key worked, the other did not exist, and no log anywhere reported an error. Both write-ups are about the same thing: a green result is evidence of nothing until something outside the tool is asked.
 
 **[Load average of 274 with every disk idle](docs/CHECKLIST.md#history)** - I/O pressure pinned at 98% for two hours while SMART was clean, the disk sat at 0% utilisation and swap was not moving. The break came from separating two layers: the NFS port accepted TCP connections while `showmount` hung, because an open port proves the kernel is listening, not that the RPC service is answering. Stopping the storage VM dropped the load from 274 to 4.6 in seconds. Three hypotheses were eliminated by measurement before the right one, and the earlier `soft` mount change is what made recovery possible instead of repeating the lockup above.
 

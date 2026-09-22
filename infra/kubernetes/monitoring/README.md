@@ -175,3 +175,20 @@ The address of the host to read is a scrape parameter rather than a setting of t
 | `qemu/100` and `lxc/107`, both stopped | 0 | - |
 
 Two things to read from it. The three VMs hold almost everything, and each sits close to what it was given, because a VM's memory is taken when it is touched and rarely handed back; the six containers together use less than a fifth of what one of them was configured for. And the host's own 12 GiB total is about 1.2 GiB more than the guests add up to, which is Proxmox itself and the cache it keeps for them.
+
+**Read again on 22/09/2026**, the day after, with a guest that did not exist when the table above was written:
+
+| Guest | Using | Configured |
+|---|---|---|
+| `node/pve`, the host itself | 13.32 GiB | 23.30 GiB |
+| `qemu/102` TrueNAS | 5.36 GiB | 6 GiB |
+| `qemu/109` k3s | 3.85 GiB | 4 GiB |
+| `qemu/106` OPNsense | 1.86 GiB | 2 GiB |
+| `lxc/104` Nextcloud, `lxc/105` Jellyfin, `lxc/108` monitor | 0.19, 0.17 and 0.15 GiB | 2, 4 and 0.5 GiB |
+| `lxc/101` Caddy, `lxc/103` WireGuard | 0.04 and 0.03 GiB | 0.5 GiB each |
+| `qemu/110` mnt-mate and `lxc/107`, both stopped | 0 | 6 GiB and 2 GiB |
+
+Three things changed, and the most useful one is the last row. **The development machine appears with zero against its six gigabytes**, which is the design showing up in the data rather than a gap in it: that machine is off unless somebody is using it, and that is precisely what keeps its allocation out of the arithmetic the migrations depend on. A guest that is configured and not running costs nothing here, and the series says so without anybody having to remember it.
+
+The other two are worth watching rather than acting on. **OPNsense went from 1.29 to 1.86 GiB**, a 44% rise in a day on a firewall whose load did not visibly change, which is the kind of number that is either a state table growing into memory it was always going to use, or the start of something; a week of history will say which, and that is what this stack is for. And the host's own total rose 1.3 GiB while the guests together barely moved, which is cache, since the development machine's disk was created, written to and read back in that window.
+

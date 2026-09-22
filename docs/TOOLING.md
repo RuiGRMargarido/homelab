@@ -32,7 +32,7 @@ Ready-made connectors (Slack, Obsidian) were searched for through Claude's "conn
 
 ## 2. Documentation - Obsidian
 
-- **The vault is the repository folder itself.** Obsidian works over any folder of Markdown - nothing needs converting, the existing `.md` files work as they are.
+- **The vault is the repository folder itself.** Obsidian works over any folder of Markdown - nothing needs converting, the existing `.md` files work as they are. **Since 21/09/2026 it runs in two places**: on the PC, and on VM 110 `mnt-mate`, the development machine, over a clone of the same repository. Installed there by Ansible from Flathub rather than as a downloaded `.deb`, so it updates with a signed repository instead of waiting for somebody to remember it. The consequence worth knowing: two machines now write to `.obsidian/`, which changes on its own when a vault is opened, so commits here are made by explicit path and never with `git commit -a`.
 - **Free synchronisation over Git**: install the community plugin **obsidian-git** inside Obsidian (Settings → Community plugins). It gives you a commit/push/pull button and can run scheduled auto-backups. That syncs between devices without paying for Obsidian Sync - you just need the repo cloned on each machine or phone. Note (11/08/2026): `.obsidian/plugins/` is now gitignored, so on a new device the plugin has to be installed by hand once before the sync works.
 - **Recommended structure** (an evolution of what already exists, not a rewrite):
   - `Homelab.md` (root note / MOC - *Map of Content*) - replaces and expands the README as the entry point inside Obsidian, linking to the notes below.
@@ -106,6 +106,14 @@ infra/
 
 **Discipline**: every infrastructure change goes through `code-review`/`security-review` before `tofu apply` / `ansible-playbook` / `kubectl apply`, and gets recorded in the `PROJECT_CONTEXT.md` history.
 
+### The second machine built from code, and what it added (21-22/09/2026)
+
+VM 110 `mnt-mate`, a Linux Mint desktop, is the second guest created by OpenTofu and the first one whose **installed software** is described anywhere. Three things about it belong in a tooling document rather than in a changelog:
+
+- **A role per purpose, with a tag per block.** `roles/workstation` is nine independent blocks (remote desktop, editors, git and GitHub, runtimes, containers, Java, documentation, the agents, the desktop launchers), each one a boolean in `group_vars` and a tag of its own name. Adding one later is `--tags docker` and three minutes rather than a full run. The trap found while using it: a tag on an `include_tasks` marks the include and **not** what it includes, so every tagged run was green and installed nothing until `apply:` was added to all thirteen.
+- **The first external collection.** `community.general` entered through `infra/ansible/requirements.yml`, for `npm`, `flatpak`, `timezone`, `locale_gen` and `dconf`. The alternative was five `command` tasks guarded by `creates:`, which run once and then report a state they no longer check. The cost is one line in CI, which installs it before `ansible-lint`, because a linter that cannot load a module quietly skips validating its arguments.
+- **Public keys live outside the repository.** A person's SSH public key is not a secret, and it still ties a public document to one particular machine, like the MAC addresses this repository already keeps out. So `inventory/group_vars/<group>/keys.yml` is gitignored and loaded beside the committed `main.yml`, which is a convention rather than an exception: Ansible reads every file in a `group_vars/<group>/` directory.
+
 ### The Proxmox identity for OpenTofu
 
 Created 11/09/2026. Provisioning runs as `opentofu@pve`, never `root@pam`. The realm is the first line of defence: `pve` is Proxmox's internal user database, so the identity has **no Unix account, no shell and no SSH**. A credential that leaks out of a `.tfvars` file has nowhere to log in.
@@ -165,3 +173,4 @@ This does not replace `code-review`/`security-review` (still mandatory before ap
 - 17/09/2026: §3 still presented Prometheus and Grafana as brought forward into the initial phase, the decision of 22/07, while the checklist and `MONITORING.md` have treated them as later since the alerting was built. The current status is recorded beside the original decision rather than replacing it.
 - 18/09/2026: the expected limit on VM 102's `args` gained a note: the import was stopped before reaching it, by the provider failing to read the VM's pool disk path.
 - 18/09/2026: §5 step 6 still wired the monitoring stack to Slack. It was installed without Alertmanager, and the alerting stays with Uptime Kuma; recorded beside the original step.
+- 22/09/2026: **the tooling this document describes gained a second machine and a first external dependency.** §4 records VM 110, the development desktop built from code: a role of nine independently tagged blocks, `community.general` as the first collection this repository depends on, and the convention that public keys live in a gitignored `keys.yml` beside the committed group variables. §2 no longer says Obsidian lives on the PC: it runs in both places over the same vault, which is this repository, with the consequence that two machines write to `.obsidian/` and commits here are made by explicit path.
