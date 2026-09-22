@@ -78,21 +78,23 @@ fi
 {% endfor %}
 
 echo "remote desktop"
-if systemctl is-active --quiet rustdesk; then
-    ok "rustdesk" "active"
+if command -v x2golistsessions >/dev/null 2>&1; then
+    ok "x2go" "server installed"
 else
-    no "rustdesk" "not active"
+    no "x2go" "x2goserver missing"
 fi
-# The port is whichever the direct IP setting uses, in the 2111x range, rather
-# than a number written here from memory. What this actually answers is whether
-# "enable direct IP access" was ever switched on inside the application: until it
-# is, nothing listens and no direct connection is possible.
-direct_port=$(ss -ltn 2>/dev/null | grep -oE ':2111[0-9]' | tr -d ':' | sort -u | tr '
-' ' ')
-if [ -n "$direct_port" ]; then
-    ok "direct access" "listening on $direct_port"
+# There is no port of its own to look for, and that is the point: X2Go rides the
+# SSH connection. So what is checked is the door it actually uses, and that the
+# person has a key on it, since this machine refuses passwords.
+if ss -ltn | grep -q ':22 '; then
+    ok "ssh" "22 listening, which is what X2Go travels on"
 else
-    no "direct access" "nothing on 2111x: turn on direct IP access in Security"
+    no "ssh" "nothing on 22: X2Go has no way in"
+fi
+if [ -s "$HOME/.ssh/authorized_keys" ]; then
+    ok "personal key" "$(wc -l < "$HOME/.ssh/authorized_keys") in authorized_keys"
+else
+    no "personal key" "none, so no X2Go and no ssh as this user"
 fi
 
 echo "diagrams"

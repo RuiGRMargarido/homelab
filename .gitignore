@@ -53,3 +53,8 @@ backups/
 # Cache que o ansible-lint cria na raiz do projeto (colecoes e ambiente).
 # Vazia hoje, mas uma corrida futura pode la deixar ficheiros.
 .ansible/
+
+# Public keys of particular machines. Not secret, and deliberately out of a
+# public repository for the same reason the MAC addresses are: they tie these
+# documents to one person's hardware. The role reads them from here.
+infra/ansible/inventory/group_vars/*/keys.yml

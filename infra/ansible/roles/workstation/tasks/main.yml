@@ -73,13 +73,13 @@
       tags: [packages]
   tags: packages
 
-- name: Remote desktop, RustDesk
+- name: Remote desktop, X2Go
   ansible.builtin.include_tasks:
-    file: rustdesk.yml
+    file: x2go.yml
     apply:
-      tags: [rustdesk]
-  when: workstation_rustdesk
-  tags: rustdesk
+      tags: [x2go]
+  when: workstation_x2go
+  tags: x2go
 
 - name: Editor, VS Code
   ansible.builtin.include_tasks:

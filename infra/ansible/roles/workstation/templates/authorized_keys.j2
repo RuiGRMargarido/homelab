@@ -1,0 +1,10 @@
+{# One key per line, which is the only thing sshd accepts. Written as a template
+   rather than as `content:` in the task, after a YAML lesson worth keeping: a
+   double-quoted scalar that spans source lines folds those line breaks into
+   spaces, so `join('\n')` written across two lines joined the keys with a space
+   and put them all on one line. sshd then read the first key and treated
+   everything after it, including a whole RSA key, as its comment. The ed25519
+   worked, the RSA silently did not, and nothing anywhere reported an error. #}
+{% for key in workstation_user_authorized_keys %}
+{{ key }}
+{% endfor %}

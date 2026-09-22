@@ -55,6 +55,26 @@
     state: present
   loop: "{{ workstation_dconf_settings }}"
 
+- name: Make sure the person has an .ssh directory
+  ansible.builtin.file:
+    path: "/home/{{ workstation_user }}/.ssh"
+    state: directory
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    mode: "0700"
+  when: workstation_user_authorized_keys | length > 0
+
+# Written whole rather than appended to, so the file says what the repository
+# says and a key removed from the list is a key removed from the machine.
+- name: Let the person in with a key, since this machine refuses passwords
+  ansible.builtin.template:
+    src: authorized_keys.j2
+    dest: "/home/{{ workstation_user }}/.ssh/authorized_keys"
+    owner: "{{ workstation_user }}"
+    group: "{{ workstation_user }}"
+    mode: "0600"
+  when: workstation_user_authorized_keys | length > 0
+
 - name: Make sure the person has an autostart directory
   ansible.builtin.file:
     path: "/home/{{ workstation_user }}/.config/autostart"

@@ -1,0 +1,61 @@
+---
+# The graphical way in, and the one that won a comparison made on the machine
+# rather than on reputation. The two it replaced are removed here, because a role
+# describes a state and a machine with three remote desktops installed is not the
+# state anybody chose.
+#
+#   NoMachine, 21/09/2026, out the next day: version 10 discontinued the free
+#   edition and the server refused the first connection. The 9.x packages that
+#   would still be free are no longer served, checked with HEAD requests.
+#
+#   xrdp, 22/09/2026, out the same day: Ubuntu 24.04 carries 0.9.24, H.264 over
+#   RDP needs 0.10, and RemoteFX at 16 bits of colour is what is left.
+#
+#   RustDesk, 22/09/2026, out the same evening: it works, and it encodes the
+#   screen as video, which on a machine with no GPU is paid for in processor on
+#   every frame. Measurably better than xrdp and still not sharp.
+#
+# X2Go speaks NX3: it compresses X drawing operations and images instead of
+# encoding frames, which is the right shape for text, code and editors on a fast
+# local network, and it was visibly better here on the first attempt. Two
+# properties came with it that were not the reason for choosing it and are worth
+# more than they look: it **opens no listening port**, riding the SSH connection
+# that already exists, and its sessions are **resumable**, so a disconnection
+# leaves the desktop running and picks it up where it was.
+#
+# What it costs: it cannot attach to the session already on the console, which is
+# the one thing NoMachine did and the reason the Proxmox noVNC console stays as
+# the way in that depends on nothing installed here. And it wants the compositor
+# off, which is why `workstation_dconf_settings` turns it off: compositing forces
+# whole-frame updates and defeats exactly the compression this relies on.
+#
+# The person's SSH key is not optional scenery here: X2Go logs in over SSH as the
+# human, and this machine refuses passwords. See `workstation_user_authorized_keys`.
+
+- name: Remove the remote desktops that came before
+  ansible.builtin.apt:
+    name:
+      - nomachine-personal-edition
+      - xrdp
+      - xorgxrdp
+      - rustdesk
+    state: absent
+    purge: true
+
+- name: Remove what those left behind
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/cache/homelab/nomachine-personal-edition_10.1.7_1_amd64.deb
+    - /var/cache/homelab/rustdesk-1.4.9-x86_64.deb
+    - "/home/{{ workstation_user }}/.xsession"
+
+- name: Install the X2Go server
+  ansible.builtin.apt:
+    name:
+      - x2goserver
+      - x2goserver-xsession
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
