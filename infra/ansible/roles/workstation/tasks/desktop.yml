@@ -39,6 +39,24 @@
     group: "{{ workstation_user }}"
     mode: "0755"
 
+# Checked before copying, and this is the one place in the role that tolerates
+# something being absent. The name of a .desktop file belongs to whoever packages
+# the application and changes between versions, while a missing package would be
+# our own mistake and should stop the run. The debug task is what keeps the
+# tolerance honest: a launcher that is not there is printed, not swallowed.
+- name: Look for the launchers the packages ship
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: workstation_launchers
+  loop: "{{ workstation_desktop_shortcuts }}"
+
+- name: Say which launchers are not on this machine
+  ansible.builtin.debug:
+    msg: >-
+      Not found, so not put on the desktop:
+      {{ workstation_launchers.results | rejectattr('stat.exists') | map(attribute='item') | list }}
+  when: workstation_launchers.results | rejectattr('stat.exists') | list | length > 0
+
 - name: Put the launchers on the desktop
   ansible.builtin.copy:
     src: "{{ item }}"
@@ -49,7 +67,7 @@
     # Executable, because a .desktop file without the bit is shown as a text
     # file rather than as a launcher.
     mode: "0755"
-  loop: "{{ workstation_desktop_shortcuts }}"
+  loop: "{{ workstation_launchers.results | selectattr('stat.exists') | map(attribute='item') | list }}"
 
 # Caja asks before running a launcher it does not trust. This marks them as
 # trusted so the first double click opens the application instead of a question.
@@ -61,6 +79,6 @@
   become_user: "{{ workstation_user }}"
   ansible.builtin.command:
     cmd: "gio set {{ workstation_desktop_dir }}/{{ item | basename }} metadata::trusted true"
-  loop: "{{ workstation_desktop_shortcuts }}"
+  loop: "{{ workstation_launchers.results | selectattr('stat.exists') | map(attribute='item') | list }}"
   changed_when: false
   failed_when: false

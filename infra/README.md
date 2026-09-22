@@ -172,9 +172,9 @@ gh auth login
 git config --global user.name "..." && git config --global user.email "..."
 ```
 
-Plus the SSH key for the GitHub account, the password of the person's own user, and accepting the host key on the first NoMachine connection. Ten minutes, once, and the list is here so it is copy and paste rather than memory.
+Plus the SSH key for the GitHub account, the password of the person's own user, and two settings inside RustDesk that are exposure rather than configuration: a permanent password, and "enable direct IP access", without which nothing listens for a direct connection at all. Ten minutes, once, and the list is here so it is copy and paste rather than memory.
 
-Everything else is [`roles/workstation`](ansible/roles/workstation): the keyboard, the clock, the locale, the base packages, NoMachine, VS Code with its extensions, IntelliJ, git and the GitHub CLI, Node, Docker, the JDK and Maven, Obsidian, PlantUML, and the Claude Code CLI. Each block is a variable in [`inventory/group_vars/dev.yml`](ansible/inventory/group_vars/dev.yml) and carries a tag of the same name, so adding one later is `--tags docker` and three minutes. The role also installs `dev-smoke`, which checks every item of that list in one command and exits non-zero if anything is missing.
+Everything else is [`roles/workstation`](ansible/roles/workstation): the keyboard, the clock, the locale, the desktop settings, the base packages, RustDesk, VS Code with its extensions, IntelliJ, git and the GitHub CLI, Node, Docker, the JDK and Maven, Obsidian, PlantUML, Claude Code and Claude Desktop. Each block is a variable in [`inventory/group_vars/dev.yml`](ansible/inventory/group_vars/dev.yml) and carries a tag of the same name, so adding one later is `--tags docker` and three minutes. The role also installs `dev-smoke`, which checks every item of that list in one command and exits non-zero if anything is missing.
 
 ## Prerequisites
 

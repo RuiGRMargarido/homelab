@@ -89,9 +89,28 @@ resource "proxmox_virtual_environment_vm" "mnt_mate" {
   # `host` for the same reason as the k3s node: this machine runs images and
   # toolchains built by other people, and a generic CPU model is how those fail
   # with `illegal instruction` instead of with a message.
+  # Six cores and half the weight, which reads like a contradiction and is not.
+  #
+  # The host has six physical cores and no hyper-threading, and twelve vCPUs are
+  # already handed out across TrueNAS, OPNsense and the k3s node. A count does
+  # not reserve anything: it is a ceiling for bursts, and a desktop is nothing
+  # but bursts, idle for minutes and then wanting everything for two seconds to
+  # open a browser or encode a screen.
+  #
+  # What decides who wins when two guests want the processor at the same time is
+  # `units`, the weight, and every guest here is on the default. So this one asks
+  # for half. When the host is quiet it can use all six; the moment the firewall
+  # needs the processor to route the household, or TrueNAS to serve a file, this
+  # machine is the one that gives way. That is the right order of priorities in
+  # a house where one VM carries the network and another carries the data.
+  #
+  # Watch it against CHECKLIST item 101, the vCPU stalls at 21:43 that were never
+  # explained: this is the kind of change that could make them worse, and it is
+  # one line to undo.
   cpu {
-    cores = 2
+    cores = 6
     type  = "host"
+    units = 50
   }
 
   # Deliberately the smaller of the two sizes the decision allowed. Growing is
@@ -117,6 +136,15 @@ resource "proxmox_virtual_environment_vm" "mnt_mate" {
     iothread     = true
     discard      = "on"
     ssd          = true
+    # `writeback` instead of the provider's `none`, and it is a trade rather than
+    # a free win. With `none` every read and write goes past the host's page
+    # cache, which is the right default for a machine holding data that matters;
+    # with `writeback` the host caches on this guest's behalf, which is most of
+    # what makes a desktop feel immediate the second time it opens anything.
+    # What it costs: a host that loses power can lose the last seconds of writes.
+    # Acceptable here precisely because nothing on this machine is the only copy
+    # of anything, and deliberately not proposed for TrueNAS or the firewall.
+    cache = "writeback"
   }
 
   # The installer drive, empty since 21/09/2026: Mint is on the disk and the ISO
@@ -150,11 +178,19 @@ resource "proxmox_virtual_environment_vm" "mnt_mate" {
     model   = "virtio"
   }
 
-  # A real graphical adapter, unlike the k3s node, which writes its console to
-  # a serial port. This one is looked at: by noVNC during the installation, and
-  # by NoMachine afterwards.
+  # `virtio` since 22/09/2026, and `std` before it. The change is a measurement,
+  # not a preference: the desktop felt slow over the network while the path was
+  # answering in 2ms at 79MB/s and the guest sat 86% idle, which leaves the one
+  # part nobody had looked at. `std` is an emulated VGA framebuffer living in
+  # emulated video memory, so X11 draws into it in software and, worse for this
+  # machine, reading it back is slow. Reading it back thirty times a second is
+  # exactly what a remote desktop does. virtio-gpu is a real DRM device backed by
+  # system memory, with a driver already in the guest's kernel.
+  #
+  # Reversible in one line if X11 ever dislikes it, which is the reason it is
+  # worth trying before buying anything or resizing the machine.
   vga {
-    type = "std"
+    type = "virtio"
   }
 
   # Enabled on 21/09/2026, once the Ansible `base` role had installed

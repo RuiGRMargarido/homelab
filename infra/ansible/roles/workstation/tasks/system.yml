@@ -39,6 +39,22 @@
     name: "{{ workstation_locale }}"
     state: present
 
+# As the person, because these live in their dconf database and not in any file
+# under /etc. The module starts a temporary session bus when there is none, which
+# is what makes this work over SSH with nobody logged in: a plain `gsettings` in
+# the same position writes into a session that does not exist and is lost.
+#
+# Takes effect when the window manager next starts, which means at the next
+# login rather than at the end of this run.
+- name: Turn off the compositor and the animations
+  become: true
+  become_user: "{{ workstation_user }}"
+  community.general.dconf:
+    key: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+  loop: "{{ workstation_dconf_settings }}"
+
 - name: Make sure the person has an autostart directory
   ansible.builtin.file:
     path: "/home/{{ workstation_user }}/.config/autostart"

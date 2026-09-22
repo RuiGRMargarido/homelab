@@ -29,11 +29,15 @@ version_of() {
     case "$1" in
         java) java -version 2>&1 | head -1 ;;
         mvn) mvn -v 2>/dev/null | head -1 ;;
+        # Asked of dpkg rather than of the program: this one is a window, and
+        # `--version` on an Electron application is a good way to make a check
+        # script open an application and wait for it.
+        claude-desktop) dpkg-query -W -f='${Version}' claude-desktop 2>/dev/null ;;
         *) "$1" --version 2>/dev/null | head -1 ;;
     esac
 }
 
-for binary in git gh node npm java mvn pandoc plantuml docker code claude; do
+for binary in git gh node npm java mvn pandoc plantuml docker code claude claude-desktop; do
     if command -v "$binary" >/dev/null 2>&1; then
         ok "$binary" "$(version_of "$binary")"
     else
@@ -74,10 +78,21 @@ fi
 {% endfor %}
 
 echo "remote desktop"
-if systemctl is-active --quiet nxserver; then
-    ok "nxserver" "active, NoMachine listens on 4000/TCP"
+if systemctl is-active --quiet rustdesk; then
+    ok "rustdesk" "active"
 else
-    no "nxserver" "not active"
+    no "rustdesk" "not active"
+fi
+# The port is whichever the direct IP setting uses, in the 2111x range, rather
+# than a number written here from memory. What this actually answers is whether
+# "enable direct IP access" was ever switched on inside the application: until it
+# is, nothing listens and no direct connection is possible.
+direct_port=$(ss -ltn 2>/dev/null | grep -oE ':2111[0-9]' | tr -d ':' | sort -u | tr '
+' ' ')
+if [ -n "$direct_port" ]; then
+    ok "direct access" "listening on $direct_port"
+else
+    no "direct access" "nothing on 2111x: turn on direct IP access in Security"
 fi
 
 echo "diagrams"

@@ -31,6 +31,10 @@ workstation_base_packages:
   - console-setup
   - keyboard-configuration
   - curl
+  # The dconf command line, which the module that writes the desktop settings
+  # below runs. gsettings alone is glib and is already there; this one is not
+  # guaranteed to be.
+  - dconf-cli
   # Mint ships Flatpak with Flathub configured, and disables snapd. Obsidian and
   # IntelliJ come that way, so the requirement is stated instead of assumed.
   - flatpak
@@ -48,9 +52,49 @@ workstation_base_packages:
   - unzip
   - wget
 
+# Desktop settings that would otherwise exist only because somebody clicked them.
+#
+# The compositor is on, and it was off for a few hours on 22/09/2026. That is
+# worth keeping written down, because the argument that turned it off was sound
+# and the machine disagreed with it. Off, on the old reasoning: shadows and
+# transparency recomputed and resent on every window movement are the worst trade
+# available over a network. Back on, because this machine has no graphics
+# acceleration and the protocol carrying it is not an old one: without a
+# compositor every window uncovered by a drag waits for the application to
+# repaint itself, and under software rendering that is exactly what leaves a
+# trail behind the window. RustDesk sends video, so the compositor costs it far
+# less than the repainting does.
+#
+# The animations stay off: those are latency with nothing bought back.
+#
+# The three keys were read from the machine with `gsettings list-keys` before
+# being written here, because a key that does not exist makes the task fail and
+# a key that exists under another name does nothing at all.
+workstation_dconf_settings:
+  - key: /org/mate/marco/general/compositing-manager
+    value: "true"
+  - key: /org/mate/interface/enable-animations
+    value: "false"
+  - key: /org/mate/interface/gtk-enable-animations
+    value: "false"
+
+# One-line `.list` files this role replaces with its own deb822 `.sources`.
+#
+# Two definitions of the same repository make apt refuse to read any of them, and
+# from that moment every task in this role that touches apt fails with an error
+# about `Signed-By` that names neither the role nor the file that caused it. The
+# Claude Desktop entry is here because its published quick instructions write
+# exactly such a file, by hand, with the key in a different directory from the
+# one the module uses.
+#
+# Removed because it breaks apt, not because it is untidy: the stray keyring it
+# points at is inert and is left where it is.
+workstation_legacy_sources:
+  - /etc/apt/sources.list.d/claude-desktop.list
+
 # The blocks. Each one is independent and carries a tag of the same name, so a
 # later addition is `--tags docker` and three minutes rather than a full run.
-workstation_nomachine: true
+workstation_rustdesk: true
 workstation_vscode: true
 workstation_intellij: true
 workstation_github: true
@@ -59,21 +103,8 @@ workstation_docker: true
 workstation_java: true
 workstation_docs: true
 workstation_claude_code: true
+workstation_claude_desktop: true
 workstation_desktop: true
-
-# NoMachine publishes no apt repository, only a .deb per release, so the version
-# is written here and verified against the checksum the vendor publishes beside
-# it. That checksum is an MD5 because MD5 is what they publish: weak, and still
-# better than the alternative, which is pinning a hash we calculated ourselves
-# and which therefore proves only that the file has not changed since we saw it.
-# The download is over HTTPS from their own host.
-#
-# Personal Edition: free for personal use, one connection at a time, which is
-# exactly this case. Updating is this version and this checksum, read from
-# https://download.nomachine.com/download/?id=43&platform=linux
-workstation_nomachine_version: 10.1.7_1
-workstation_nomachine_url: "https://download.nomachine.com/download/10.1/Linux/nomachine-personal-edition_10.1.7_1_amd64.deb"
-workstation_nomachine_checksum: "md5:b97cc14512e7cc7cb93ce2bbe465a2de"
 
 # The Ubuntu codename these third-party repositories want. Mint reports `zena`
 # in ${distro_codename} and its packages come from `noble`, so this is read from
@@ -106,12 +137,26 @@ workstation_docs_packages:
   - pandoc
   - plantuml
 
+# RustDesk publishes no apt repository, so the version is written here and the
+# file verified against the sha256 that GitHub publishes for the asset itself,
+# read from the release API rather than from a page. Updating is these three
+# lines: https://api.github.com/repos/rustdesk/rustdesk/releases/latest
+#
+# The plain x86_64 build and not the `-sciter` one, which is the old interface
+# kept for machines that cannot run the current one.
+workstation_rustdesk_version: "1.4.9"
+workstation_rustdesk_url: "https://github.com/rustdesk/rustdesk/releases/download/1.4.9/rustdesk-1.4.9-x86_64.deb"
+workstation_rustdesk_checksum: "sha256:7244ba47c40e804172044bfbe659467c54ce46554c98e78c8c0406f1d612fda3"
+
 # The launchers that land on the desktop, as the paths where the packages
 # themselves keep them: the two from apt under /usr/share/applications, and the
 # two Flatpaks under the directory Flatpak exports to the system. A terminal is
 # in the list because it is what this machine is opened for half the time.
 workstation_desktop_shortcuts:
   - /usr/share/applications/code.desktop
+  # Named after the application id and not after the package, which is why it
+  # was read from `dpkg -L claude-desktop` instead of guessed a second time.
+  - /usr/share/applications/com.anthropic.Claude.desktop
   - /usr/share/applications/mate-terminal.desktop
   - /var/lib/flatpak/exports/share/applications/com.jetbrains.IntelliJ-IDEA-Community.desktop
   - /var/lib/flatpak/exports/share/applications/md.obsidian.Obsidian.desktop

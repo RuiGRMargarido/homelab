@@ -1,0 +1,33 @@
+---
+# Claude Desktop, from Anthropic's own apt repository. In beta for Linux, and
+# supporting Ubuntu 22.04 and later, which Mint 22.3 is underneath.
+#
+# The repository rather than the .deb, and for once the vendor says why in its
+# own documentation: installed this way the updates arrive with the rest of the
+# system's packages instead of through the application updating itself. That is
+# the same preference this project applies everywhere else, and the reason
+# NoMachine is the exception rather than the rule.
+#
+# The suite is `stable`, Anthropic's own name for it, and has nothing to do with
+# the Ubuntu codename that the Docker and Node repositories need.
+#
+# The CLI in tasks/claude_code.yml is a different thing and both are installed:
+# one is a terminal tool, the other a window.
+
+- name: Anthropic repository for Claude Desktop
+  ansible.builtin.deb822_repository:
+    name: claude-desktop
+    types: [deb]
+    uris: https://downloads.claude.ai/claude-desktop/apt/stable
+    suites: [stable]
+    components: [main]
+    architectures: [amd64]
+    signed_by: https://downloads.claude.ai/claude-desktop/key.asc
+    state: present
+    enabled: true
+
+- name: Install Claude Desktop
+  ansible.builtin.apt:
+    name: claude-desktop
+    state: present
+    update_cache: true

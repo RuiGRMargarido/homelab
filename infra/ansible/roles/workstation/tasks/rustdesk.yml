@@ -1,0 +1,76 @@
+---
+# The graphical way in, third attempt, and the two before it are removed here
+# rather than left behind. The history is short and worth keeping, because it is
+# the reason this block looks the way it does:
+#
+#   NoMachine, 21/09/2026. Dropped the next day: version 10 discontinued the free
+#   edition, the server answered the first connection with "the subscription on
+#   this server does not exist", and the 9.x packages that would still be free are
+#   no longer published, checked with HEAD requests against their download host.
+#
+#   xrdp, 22/09/2026. Free, from the distribution, and the client is already in
+#   Windows. Dropped the same day on measurement rather than taste: Ubuntu 24.04
+#   carries 0.9.24, and H.264 over RDP needs 0.10, so what is left is RemoteFX at
+#   16 bits of colour. It works and it does not feel like a local desktop.
+#
+# RustDesk speaks VP8, VP9, AV1 or H.264 and attaches to the session that is on
+# the screen, which is what NoMachine did and xrdp cannot. It is open source, and
+# the .deb comes from the project's own GitHub release, pinned by version and
+# verified against the sha256 that GitHub publishes for the asset. Better than
+# the md5 NoMachine offered, and the reason this one is a downloaded file rather
+# than a repository: the project publishes no apt repository at all.
+#
+# **Two settings are made by hand, once, inside the application**, because they
+# are credentials and exposure rather than configuration: a permanent password
+# under Security, and "enable direct IP access". Until the second one is on,
+# nothing listens for a direct connection and `dev-smoke` says so.
+#
+# **And one thing to know about what it does on its own**: without a server of
+# its own, a RustDesk client registers with the project's public rendezvous
+# servers to obtain its ID. Connecting by direct IP does not need that, and the
+# clean fix is to run the server side here, which is a good candidate for the
+# k3s cluster and is written down in CHECKLIST.md instead of being improvised.
+
+- name: Remove the remote desktops that came before
+  ansible.builtin.apt:
+    name:
+      - nomachine-personal-edition
+      - xrdp
+      - xorgxrdp
+    state: absent
+    purge: true
+
+- name: Remove what those left behind
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/cache/homelab/nomachine-personal-edition_10.1.7_1_amd64.deb
+    - "/home/{{ workstation_user }}/.xsession"
+
+- name: Make a place for downloaded packages
+  ansible.builtin.file:
+    path: /var/cache/homelab
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Fetch the RustDesk package
+  ansible.builtin.get_url:
+    url: "{{ workstation_rustdesk_url }}"
+    dest: "/var/cache/homelab/rustdesk-{{ workstation_rustdesk_version }}-x86_64.deb"
+    checksum: "{{ workstation_rustdesk_checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install RustDesk
+  ansible.builtin.apt:
+    deb: "/var/cache/homelab/rustdesk-{{ workstation_rustdesk_version }}-x86_64.deb"
+
+- name: Start RustDesk and leave it started
+  ansible.builtin.systemd_service:
+    name: rustdesk
+    state: started
+    enabled: true

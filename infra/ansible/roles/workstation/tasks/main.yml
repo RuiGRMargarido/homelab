@@ -8,6 +8,11 @@
 # the editor extensions, and the third-party repositories come before anything
 # that installs from them.
 
+# `apply:` on every include, and it is not decoration. A tag on an
+# `include_tasks` marks the include and nothing inside it, so `--tags docker`
+# would select the include, run it, and then filter out every task it brought
+# in: a green run with `changed=0` that installed nothing. Found on 22/09/2026
+# by running exactly what the documentation of this role promised.
 - name: Refuse to run without knowing whose machine this is
   ansible.builtin.assert:
     that:
@@ -41,61 +46,118 @@
   ansible.builtin.debug:
     msg: "Third-party repositories will use suite '{{ workstation_codename }}'"
 
+# First, and before anything that uses apt. A repository defined twice with two
+# different keyring paths stops apt reading its sources at all, so a machine in
+# that state cannot be repaired by any later task in this role: they all fail on
+# the same error, in whichever block happens to run first.
+- name: Remove hand-written repository files this role replaces
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ workstation_legacy_sources }}"
+  # `always`, because a run limited to one block would otherwise skip the very
+  # repair that lets that block work.
+  tags: always
+
 - name: Settings that would otherwise exist only because someone clicked them
-  ansible.builtin.include_tasks: system.yml
+  ansible.builtin.include_tasks:
+    file: system.yml
+    apply:
+      tags: [system]
   tags: system
 
 - name: The floor of a working environment
-  ansible.builtin.include_tasks: packages.yml
+  ansible.builtin.include_tasks:
+    file: packages.yml
+    apply:
+      tags: [packages]
   tags: packages
 
-- name: Remote desktop, NoMachine
-  ansible.builtin.include_tasks: nomachine.yml
-  when: workstation_nomachine
-  tags: nomachine
+- name: Remote desktop, RustDesk
+  ansible.builtin.include_tasks:
+    file: rustdesk.yml
+    apply:
+      tags: [rustdesk]
+  when: workstation_rustdesk
+  tags: rustdesk
 
 - name: Editor, VS Code
-  ansible.builtin.include_tasks: vscode.yml
+  ansible.builtin.include_tasks:
+    file: vscode.yml
+    apply:
+      tags: [vscode]
   when: workstation_vscode
   tags: vscode
 
 - name: Editor, IntelliJ IDEA Community
-  ansible.builtin.include_tasks: intellij.yml
+  ansible.builtin.include_tasks:
+    file: intellij.yml
+    apply:
+      tags: [intellij]
   when: workstation_intellij
   tags: intellij
 
 - name: Git and GitHub
-  ansible.builtin.include_tasks: github.yml
+  ansible.builtin.include_tasks:
+    file: github.yml
+    apply:
+      tags: [github]
   when: workstation_github
   tags: github
 
 - name: Node.js LTS
-  ansible.builtin.include_tasks: nodejs.yml
+  ansible.builtin.include_tasks:
+    file: nodejs.yml
+    apply:
+      tags: [nodejs]
   when: workstation_nodejs
   tags: nodejs
 
 - name: Docker
-  ansible.builtin.include_tasks: docker.yml
+  ansible.builtin.include_tasks:
+    file: docker.yml
+    apply:
+      tags: [docker]
   when: workstation_docker
   tags: docker
 
 - name: Java
-  ansible.builtin.include_tasks: java.yml
+  ansible.builtin.include_tasks:
+    file: java.yml
+    apply:
+      tags: [java]
   when: workstation_java
   tags: java
 
 - name: Documentation, Markdown and diagrams
-  ansible.builtin.include_tasks: docs.yml
+  ansible.builtin.include_tasks:
+    file: docs.yml
+    apply:
+      tags: [docs]
   when: workstation_docs
   tags: docs
 
 - name: Claude Code
-  ansible.builtin.include_tasks: claude_code.yml
+  ansible.builtin.include_tasks:
+    file: claude_code.yml
+    apply:
+      tags: [claude_code]
   when: workstation_claude_code
   tags: claude_code
 
+- name: Claude Desktop
+  ansible.builtin.include_tasks:
+    file: claude_desktop.yml
+    apply:
+      tags: [claude_desktop]
+  when: workstation_claude_desktop
+  tags: claude_desktop
+
 - name: Launchers on the desktop
-  ansible.builtin.include_tasks: desktop.yml
+  ansible.builtin.include_tasks:
+    file: desktop.yml
+    apply:
+      tags: [desktop]
   when: workstation_desktop
   tags: desktop
 
